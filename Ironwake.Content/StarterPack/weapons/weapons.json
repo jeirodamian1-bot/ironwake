@@ -1,0 +1,62 @@
+[
+  {
+    "id": "ash_carbine",
+    "displayName": "Ash Carbine",
+    "range": 60,
+    "attacks": 2,
+    "power": 4,
+    "armourPiercing": 0,
+    "damage": 1,
+    "keywords": ["ranged"]
+  },
+  {
+    "id": "ash_heavy_quencher",
+    "displayName": "Heavy Quencher",
+    "range": 80,
+    "attacks": 1,
+    "power": 5,
+    "armourPiercing": 1,
+    "damage": 2,
+    "keywords": ["ranged", "heavy"]
+  },
+  {
+    "id": "warden_maul",
+    "displayName": "Warden's Maul",
+    "range": 0,
+    "attacks": 3,
+    "power": 5,
+    "armourPiercing": 1,
+    "damage": 2,
+    "keywords": ["melee"]
+  },
+  {
+    "id": "cinder_spitter",
+    "displayName": "Cinder Spitter",
+    "range": 50,
+    "attacks": 3,
+    "power": 3,
+    "armourPiercing": 0,
+    "damage": 1,
+    "keywords": ["ranged", "rapid"]
+  },
+  {
+    "id": "spark_thrower",
+    "displayName": "Spark Thrower",
+    "range": 70,
+    "attacks": 2,
+    "power": 4,
+    "armourPiercing": 1,
+    "damage": 1,
+    "keywords": ["ranged"]
+  },
+  {
+    "id": "brute_cleaver",
+    "displayName": "Brute Cleaver",
+    "range": 0,
+    "attacks": 4,
+    "power": 5,
+    "armourPiercing": 1,
+    "damage": 2,
+    "keywords": ["melee"]
+  }
+]

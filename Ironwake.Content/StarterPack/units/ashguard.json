@@ -1,0 +1,97 @@
+[
+  {
+    "id": "ashguard_lineholder",
+    "factionId": "ashguard",
+    "displayName": "Lineholders",
+    "points": 60,
+    "modelCount": 5,
+    "stats": {
+      "move": 40,
+      "accuracy": 4,
+      "melee": 4,
+      "resilience": 5,
+      "save": 4,
+      "wounds": 1,
+      "nerve": 6
+    },
+    "weaponIds": ["ash_carbine"],
+    "abilityIds": [],
+    "keywords": ["infantry", "core"]
+  },
+  {
+    "id": "ashguard_bulwark",
+    "factionId": "ashguard",
+    "displayName": "Bulwark Company",
+    "points": 90,
+    "modelCount": 4,
+    "stats": {
+      "move": 30,
+      "accuracy": 5,
+      "melee": 4,
+      "resilience": 6,
+      "save": 3,
+      "wounds": 2,
+      "nerve": 7
+    },
+    "weaponIds": ["ash_carbine"],
+    "abilityIds": [],
+    "keywords": ["infantry", "heavy"]
+  },
+  {
+    "id": "ashguard_quencher",
+    "factionId": "ashguard",
+    "displayName": "Quencher Crew",
+    "points": 75,
+    "modelCount": 3,
+    "stats": {
+      "move": 30,
+      "accuracy": 3,
+      "melee": 5,
+      "resilience": 5,
+      "save": 4,
+      "wounds": 1,
+      "nerve": 6
+    },
+    "weaponIds": ["ash_heavy_quencher"],
+    "abilityIds": [],
+    "keywords": ["infantry", "support"]
+  },
+  {
+    "id": "ashguard_warden",
+    "factionId": "ashguard",
+    "displayName": "Warden",
+    "points": 110,
+    "modelCount": 1,
+    "stats": {
+      "move": 40,
+      "accuracy": 3,
+      "melee": 3,
+      "resilience": 6,
+      "save": 3,
+      "wounds": 3,
+      "nerve": 8
+    },
+    "weaponIds": ["ash_carbine", "warden_maul"],
+    "abilityIds": [],
+    "keywords": ["character", "elite"]
+  },
+  {
+    "id": "ashguard_anvilborn",
+    "factionId": "ashguard",
+    "displayName": "Anvilborn",
+    "points": 130,
+    "modelCount": 1,
+    "stats": {
+      "move": 30,
+      "accuracy": 5,
+      "melee": 2,
+      "resilience": 7,
+      "save": 3,
+      "wounds": 4,
+      "nerve": 8
+    },
+    "weaponIds": ["warden_maul"],
+    "abilityIds": [],
+    "keywords": ["elite", "melee"]
+  }
+]

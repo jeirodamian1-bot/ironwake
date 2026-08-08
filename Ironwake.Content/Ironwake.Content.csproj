@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- Same target as Core: Unity can consume it and the server can reference it. -->
+    <TargetFramework>netstandard2.1</TargetFramework>
+    <LangVersion>9.0</LangVersion>
+    <Nullable>disable</Nullable>
+    <RootNamespace>Ironwake.Content</RootNamespace>
+    <AssemblyName>Ironwake.Content</AssemblyName>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+  </PropertyGroup>
+
+  <!-- This project exists so that Ironwake.Core can stay dependency-free. Serialization
+       and file access belong here and must never leak back across the boundary. -->
+
+  <ItemGroup>
+    <ProjectReference Include="..\Ironwake.Core\Ironwake.Core.csproj" />
+  </ItemGroup>
+
+  <!-- The starter pack ships beside the assembly so the console harness and tests can
+       load it without knowing anything about the source tree layout. -->
+  <ItemGroup>
+    <None Include="StarterPack\**\*.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="System.Text.Json" Version="10.0.10" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,51 @@
+# ---------- .NET ----------
+bin/
+obj/
+*.user
+*.suo
+.vs/
+.idea/
+
+# ---------- Unity ----------
+# Everything below MUST stay ignored. Committing Library/ is gigabytes and
+# the classic first mistake on a Unity repo.
+[Ll]ibrary/
+[Tt]emp/
+[Oo]bj/
+[Bb]uild/
+[Bb]uilds/
+[Ll]ogs/
+[Uu]serSettings/
+[Mm]emoryCaptures/
+[Rr]ecordings/
+*.csproj
+*.unityproj
+*.sln
+*.pidb
+*.booproj
+*.svd
+*.pdb.meta
+*.mdb.meta
+sysinfo.txt
+*.apk
+*.aab
+*.unitypackage
+crashlytics-build.properties
+
+# NOTE: the *.csproj / *.sln ignores above are Unity-generated ones.
+# Our hand-written projects are force-added. EVERY new project needs a line here,
+# or it is silently left out of the repo and nobody else can build the solution.
+!Ironwake.Core/Ironwake.Core.csproj
+!Ironwake.Content/Ironwake.Content.csproj
+!Ironwake.Console/Ironwake.Console.csproj
+!tests/Ironwake.Core.Tests/Ironwake.Core.Tests.csproj
+!tests/Ironwake.Content.Tests/Ironwake.Content.Tests.csproj
+!Ironwake.sln
+
+# ---------- Local only, never published ----------
+CLAUDE.md
+Ironwake-README.md
+
+# ---------- OS ----------
+.DS_Store
+Thumbs.db

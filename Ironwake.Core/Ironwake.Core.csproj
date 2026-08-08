@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- netstandard2.1 is the intersection Unity can consume AND the server can reference.
+         Do not change this to net8.0 - it will break the Unity client. -->
+    <TargetFramework>netstandard2.1</TargetFramework>
+    <LangVersion>9.0</LangVersion>
+    <Nullable>disable</Nullable>
+    <RootNamespace>Ironwake.Core</RootNamespace>
+    <AssemblyName>Ironwake.Core</AssemblyName>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+  </PropertyGroup>
+
+  <!-- ARCHITECTURAL LAW: this project has ZERO package references and ZERO project
+       references. If you find yourself wanting to add one, that logic belongs in
+       Ironwake.Content or Ironwake.Server instead. -->
+
+</Project>
