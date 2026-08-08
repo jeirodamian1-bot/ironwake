@@ -12,6 +12,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Ironwake.Content", "Ironwak
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Ironwake.Content.Tests", "tests\Ironwake.Content.Tests\Ironwake.Content.Tests.csproj", "{6B0C3482-64E1-44B8-BE6F-8B0623B6CF47}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Ironwake.Console.Tests", "tests\Ironwake.Console.Tests\Ironwake.Console.Tests.csproj", "{B4BDA4E4-05EB-4828-BE6F-BDF98665109D}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -38,9 +40,14 @@ Global
 		{6B0C3482-64E1-44B8-BE6F-8B0623B6CF47}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{6B0C3482-64E1-44B8-BE6F-8B0623B6CF47}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{6B0C3482-64E1-44B8-BE6F-8B0623B6CF47}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B4BDA4E4-05EB-4828-BE6F-BDF98665109D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B4BDA4E4-05EB-4828-BE6F-BDF98665109D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B4BDA4E4-05EB-4828-BE6F-BDF98665109D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B4BDA4E4-05EB-4828-BE6F-BDF98665109D}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{E2AB2E3E-B64A-430E-B4CB-F3461E79D438} = {2623F63E-FC47-4886-948E-739A15D26CAF}
 		{6B0C3482-64E1-44B8-BE6F-8B0623B6CF47} = {2623F63E-FC47-4886-948E-739A15D26CAF}
+		{B4BDA4E4-05EB-4828-BE6F-BDF98665109D} = {2623F63E-FC47-4886-948E-739A15D26CAF}
 	EndGlobalSection
 EndGlobal

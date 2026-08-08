@@ -54,6 +54,13 @@ namespace Ironwake.Core
             return def.WeaponIds.Count > 0 ? _content.GetWeapon(def.WeaponIds[0]) : null;
         }
 
+        /// <summary>
+        /// Move allowance in whole hexes, from content via <see cref="Measure"/>.
+        /// Validation, LegalActions and ReachableHexes all derive it here so they cannot
+        /// disagree about how far a unit can go.
+        /// </summary>
+        private int MoveAllowanceOf(UnitState u) => DefinitionOf(u).Stats.MoveInHexes;
+
         // ================= VALIDATE =================
 
         public ValidationResult Validate(GameState state, GameAction action)
@@ -100,22 +107,29 @@ namespace Ironwake.Core
                 return ValidationResult.Illegal(ReasonCodes.PathNotContiguous, "Path needs a start and an end.");
             if (m.Path[0] != u.Position)
                 return ValidationResult.Illegal(ReasonCodes.PathNotContiguous, "Path must start at the unit's position.");
-            int allowance = DefinitionOf(u).Stats.MoveInHexes;
+            int allowance = MoveAllowanceOf(u);
             if (m.Path.Count - 1 > allowance)
                 return ValidationResult.Illegal(ReasonCodes.PathTooLong, $"Move is {allowance} hexes.");
 
+            // The client's own path is validated step by step — we do not recompute a path
+            // and compare, because two equally legal routes to the same hex must both be
+            // accepted. The blocking rules come from Movement so that what LegalActions
+            // offers and what this accepts can never drift apart.
             for (int i = 1; i < m.Path.Count; i++)
             {
                 var h = m.Path[i];
                 if (m.Path[i - 1].DistanceTo(h) != 1)
                     return ValidationResult.Illegal(ReasonCodes.PathNotContiguous, "Path must step one hex at a time.");
-                if (!s.Board.Contains(h))
-                    return ValidationResult.Illegal(ReasonCodes.OffBoard, "That hex is off the board.");
-                if (!s.Board.IsPassable(h))
-                    return ValidationResult.Illegal(ReasonCodes.PathBlocked, "That hex is impassable.");
-                var occupant = s.UnitAt(h);
-                if (occupant != null && occupant.Id != u.Id)
-                    return ValidationResult.Illegal(ReasonCodes.HexOccupied, "Another unit is there.");
+
+                switch (Movement.BlockingReason(s, u.Id, h))
+                {
+                    case HexBlock.OffBoard:
+                        return ValidationResult.Illegal(ReasonCodes.OffBoard, "That hex is off the board.");
+                    case HexBlock.Impassable:
+                        return ValidationResult.Illegal(ReasonCodes.PathBlocked, "That hex is impassable.");
+                    case HexBlock.Occupied:
+                        return ValidationResult.Illegal(ReasonCodes.HexOccupied, "Another unit is there.");
+                }
             }
             return ValidationResult.Legal;
         }
@@ -291,12 +305,19 @@ namespace Ironwake.Core
             if (active.ActionsRemaining > 0)
             {
                 var activeDef = DefinitionOf(active);
-                foreach (var h in active.Position.WithinRange(activeDef.Stats.MoveInHexes))
+
+                // Real pathfinding, not a straight line. LineTo walks through walls and other
+                // units, so it used to offer moves that ValidateMove then refused.
+                int allowance = MoveAllowanceOf(active);
+                var reachable = Movement.ReachableFrom(state, active.Id, allowance);
+
+                // Sorted explicitly: dictionary enumeration order is not guaranteed, and this
+                // list's order decides what a client highlights first and what an AI picks.
+                foreach (var hex in reachable.Keys.OrderBy(h => h.Q).ThenBy(h => h.R))
                 {
-                    if (h == active.Position) continue;
-                    var path = active.Position.LineTo(h);
-                    var move = new MoveUnit(player, active.Id, path);
-                    if (Validate(state, move).IsLegal) list.Add(move);
+                    var path = Movement.FindPath(state, active.Id, hex, allowance);
+                    if (path.Count < 2) continue;
+                    list.Add(new MoveUnit(player, active.Id, path));
                 }
 
                 var weaponId = activeDef.WeaponIds.Count > 0 ? activeDef.WeaponIds[0] : null;
@@ -309,6 +330,15 @@ namespace Ironwake.Core
 
             list.Add(new EndActivation(player, active.Id));
             return list;
+        }
+
+        /// <inheritdoc />
+        public IReadOnlyDictionary<Hex, int> ReachableHexes(GameState state, UnitId unit)
+        {
+            var u = state.GetUnit(unit);
+            if (u == null || !u.IsAlive) return new Dictionary<Hex, int>();
+
+            return Movement.ReachableFrom(state, unit, MoveAllowanceOf(u));
         }
     }
 }

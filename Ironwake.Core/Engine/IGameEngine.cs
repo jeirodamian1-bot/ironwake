@@ -20,6 +20,20 @@ namespace Ironwake.Core
         /// Used by the client to highlight options and by the AI simulator to pick moves.
         /// </summary>
         IReadOnlyList<GameAction> LegalActions(GameState state, PlayerId player);
+
+        /// <summary>
+        /// Every hex the unit can move to, mapped to what it costs to get there. The unit's
+        /// own hex is not included.
+        ///
+        /// This exists so the client can highlight a movement range with ONE call instead of
+        /// calling <see cref="Validate"/> once per candidate hex. Empty for a missing or
+        /// destroyed unit.
+        /// </summary>
+        /// <remarks>
+        /// Enumeration order of the result is not meaningful — sort before rendering
+        /// anything order-dependent.
+        /// </remarks>
+        IReadOnlyDictionary<Hex, int> ReachableHexes(GameState state, UnitId unit);
     }
 
     public sealed class ExecutionResult

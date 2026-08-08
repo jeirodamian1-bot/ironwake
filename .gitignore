@@ -40,7 +40,12 @@ crashlytics-build.properties
 !Ironwake.Console/Ironwake.Console.csproj
 !tests/Ironwake.Core.Tests/Ironwake.Core.Tests.csproj
 !tests/Ironwake.Content.Tests/Ironwake.Content.Tests.csproj
+!tests/Ironwake.Console.Tests/Ironwake.Console.Tests.csproj
 !Ironwake.sln
+
+# ---------- Generated output ----------
+# Match viewers: dotnet run --project Ironwake.Console -- --html match.html
+match.html
 
 # ---------- Local only, never published ----------
 CLAUDE.md

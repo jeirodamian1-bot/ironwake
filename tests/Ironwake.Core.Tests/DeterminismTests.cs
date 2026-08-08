@@ -12,29 +12,6 @@ namespace Ironwake.Core.Tests
     public class DeterminismTests
     {
         /// <summary>
-        /// The console harness's action policy, mirrored exactly: shoot, else activate, else
-        /// take the longest available move, else end.
-        ///
-        /// Picking ActivateUnit explicitly matters. Without it the fallback lands on
-        /// PassActivation — both players pass forever, no unit ever activates, and no dice
-        /// are rolled, so a "determinism" comparison of two such runs passes without ever
-        /// having tested the RNG.
-        /// </summary>
-        private static GameAction PickAction(IReadOnlyList<GameAction> legal)
-        {
-            var shoot = legal.FirstOrDefault(a => a is ShootAt);
-            if (shoot != null) return shoot;
-
-            var activate = legal.FirstOrDefault(a => a is ActivateUnit);
-            if (activate != null) return activate;
-
-            var move = legal.OfType<MoveUnit>().OrderByDescending(m => m.Path.Count).FirstOrDefault();
-            if (move != null) return move;
-
-            return legal[legal.Count - 1];
-        }
-
-        /// <summary>
         /// Plays a whole match with a fixed action policy and returns a transcript of every
         /// event, plus the final state. Mirrors what Ironwake.Console prints.
         /// </summary>
@@ -51,7 +28,7 @@ namespace Ironwake.Core.Tests
                 var legal = engine.LegalActions(state, state.ActivePlayer);
                 if (legal.Count == 0) break;
 
-                var result = engine.Execute(state, PickAction(legal));
+                var result = engine.Execute(state, MatchPolicy.Pick(legal));
                 foreach (var e in result.Events)
                     log.Append("[R").Append(state.Round).Append("] ").AppendLine(e.Describe());
 
