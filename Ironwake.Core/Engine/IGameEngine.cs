@@ -107,6 +107,18 @@ namespace Ironwake.Core
         /// <summary>The unit carries nothing at all.</summary>
         public const string NoWeapon           = "NO_WEAPON";
         public const string UnitShaken         = "UNIT_SHAKEN";
+
+        /// <summary>Locked in melee: cannot shoot, though it may fight or walk away.</summary>
+        public const string UnitEngaged        = "UNIT_ENGAGED";
+
+        /// <summary>No route to any hex adjacent to the target, within the move allowance.</summary>
+        public const string NoChargePath       = "NO_CHARGE_PATH";
+
+        /// <summary>Fighting requires being next to the target.</summary>
+        public const string NotAdjacent        = "NOT_ADJACENT";
+
+        /// <summary>The unit carries nothing it can swing.</summary>
+        public const string NoMeleeWeapon      = "NO_MELEE_WEAPON";
         public const string MatchComplete      = "MATCH_COMPLETE";
         public const string UnknownAction      = "UNKNOWN_ACTION";
     }

@@ -49,8 +49,10 @@ namespace Ironwake.Core.Tests
                 if (outcome.IsTerminal) break;
             }
 
-            // Non-vacuous: if no shot were ever offered this test would prove nothing.
-            Assert.True(shotsChecked > 20, $"only {shotsChecked} shots were checked");
+            // Non-vacuous: if no shot were ever offered this test would prove nothing. The
+            // bar is a floor, not a target — the harness policy now prefers closing to melee,
+            // so a match trades fewer volleys than it used to.
+            Assert.True(shotsChecked > 10, $"only {shotsChecked} shots were checked");
         }
 
         [Fact]

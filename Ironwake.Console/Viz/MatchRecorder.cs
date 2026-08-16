@@ -6,8 +6,13 @@ using Ironwake.Core;
 namespace Ironwake.ConsoleHarness.Viz
 {
     /// <summary>
-    /// The harness's action policy: shoot, else activate, else take the longest available
-    /// move, else end the activation.
+    /// The harness's action policy: fight, else charge, else shoot, else activate, else take
+    /// the longest available move, else end the activation.
+    ///
+    /// Deliberately aggressive rather than clever. It prefers closing to shooting because
+    /// that is what exercises the melee rules — a shooting-first policy leaves charge offered
+    /// and never taken, so the whole system goes untested in practice. It is not an AI and
+    /// makes no attempt to pick the higher-damage option.
     ///
     /// Picking ActivateUnit explicitly matters — fall through to the last legal action and
     /// you get PassActivation forever, so nothing ever happens.
@@ -16,6 +21,13 @@ namespace Ironwake.ConsoleHarness.Viz
     {
         public static GameAction Pick(IReadOnlyList<GameAction> legal)
         {
+            // Already in melee: swing, it costs one action and needs no approach.
+            var fight = legal.FirstOrDefault(a => a is FightUnit);
+            if (fight != null) return fight;
+
+            var charge = legal.FirstOrDefault(a => a is ChargeAt);
+            if (charge != null) return charge;
+
             var shoot = legal.FirstOrDefault(a => a is ShootAt);
             if (shoot != null) return shoot;
 

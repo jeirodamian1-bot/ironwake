@@ -71,6 +71,8 @@ namespace Ironwake.Core
                 case ActivateUnit a: return ValidateActivate(state, a);
                 case MoveUnit m: return ValidateMove(state, m);
                 case ShootAt s: return ValidateShoot(state, s);
+                case ChargeAt c: return ValidateCharge(state, c);
+                case FightUnit f: return ValidateFight(state, f);
                 case EndActivation e: return ValidateEnd(state, e);
                 case PassActivation _: return ValidationResult.Legal;
                 default:
@@ -140,6 +142,12 @@ namespace Ironwake.Core
             if (!t.IsAlive) return ValidationResult.Illegal(ReasonCodes.UnitDead, "That target is already destroyed.");
             if (t.Owner == u.Owner) return ValidationResult.Illegal(ReasonCodes.TargetFriendly, "You cannot shoot your own unit.");
 
+            // Locked in melee: you may swing or walk away, but not shoot past the enemy in
+            // your face.
+            if (u.HasStatus(StatusKind.Engaged))
+                return ValidationResult.Illegal(ReasonCodes.UnitEngaged,
+                    "That unit is engaged in melee and cannot shoot.");
+
             var weapon = PrimaryWeaponOf(u);
             if (weapon == null)
                 return ValidationResult.Illegal(ReasonCodes.NoWeapon, "That unit carries no weapon.");
@@ -167,6 +175,64 @@ namespace Ironwake.Core
             return ValidationResult.Legal;
         }
 
+        /// <summary>
+        /// A charge is a move that ends beside the target and turns into a fight, so it
+        /// reuses the movement and sight rules rather than inventing its own.
+        /// </summary>
+        private ValidationResult ValidateCharge(GameState s, ChargeAt a)
+        {
+            var u = s.GetUnit(a.Unit);
+            var t = s.GetUnit(a.Target);
+            if (u == null || t == null) return ValidationResult.Illegal(ReasonCodes.UnitNotFound, "No such unit.");
+            if (u.Owner != a.Actor) return ValidationResult.Illegal(ReasonCodes.NotYourUnit, "That unit is not yours.");
+            if (s.ActiveUnit != a.Unit) return ValidationResult.Illegal(ReasonCodes.NotActiveUnit, "Activate that unit first.");
+            if (!t.IsAlive) return ValidationResult.Illegal(ReasonCodes.UnitDead, "That target is already destroyed.");
+            if (t.Owner == u.Owner) return ValidationResult.Illegal(ReasonCodes.TargetFriendly, "You cannot charge your own unit.");
+
+            // Charging costs both actions, so a unit that has already acted cannot start one.
+            if (u.ActionsRemaining < ActionsPerActivation)
+                return ValidationResult.Illegal(ReasonCodes.NoActionsRemaining,
+                    "A charge takes the whole activation.");
+
+            if (u.HasStatus(StatusKind.Shaken))
+                return ValidationResult.Illegal(ReasonCodes.UnitShaken, "A shaken unit will not charge.");
+
+            var los = LineOfSight.Trace(s, u.Position, t.Position);
+            if (los.IsBlocked)
+            {
+                var where = los.BlockingHex.HasValue ? $" {los.BlockingHex.Value}" : string.Empty;
+                return ValidationResult.Illegal(ReasonCodes.NoLineOfSight,
+                    $"Line of sight is blocked by the terrain at{where}.");
+            }
+
+            if (!Melee.FindApproach(s, a.Unit, a.Target, MoveAllowanceOf(u)).IsPossible)
+                return ValidationResult.Illegal(ReasonCodes.NoChargePath,
+                    "No route to a hex beside that unit within its move.");
+
+            return ValidationResult.Legal;
+        }
+
+        private ValidationResult ValidateFight(GameState s, FightUnit a)
+        {
+            var u = s.GetUnit(a.Unit);
+            var t = s.GetUnit(a.Target);
+            if (u == null || t == null) return ValidationResult.Illegal(ReasonCodes.UnitNotFound, "No such unit.");
+            if (u.Owner != a.Actor) return ValidationResult.Illegal(ReasonCodes.NotYourUnit, "That unit is not yours.");
+            if (s.ActiveUnit != a.Unit) return ValidationResult.Illegal(ReasonCodes.NotActiveUnit, "Activate that unit first.");
+            if (u.ActionsRemaining <= 0) return ValidationResult.Illegal(ReasonCodes.NoActionsRemaining, "No actions left.");
+            if (!t.IsAlive) return ValidationResult.Illegal(ReasonCodes.UnitDead, "That target is already destroyed.");
+            if (t.Owner == u.Owner) return ValidationResult.Illegal(ReasonCodes.TargetFriendly, "You cannot fight your own unit.");
+
+            if (!Melee.AreAdjacent(u, t))
+                return ValidationResult.Illegal(ReasonCodes.NotAdjacent, "That unit is not adjacent.");
+
+            if (Melee.MeleeWeaponOf(_content, u) == null)
+                return ValidationResult.Illegal(ReasonCodes.NoMeleeWeapon,
+                    "That unit carries no melee weapon.");
+
+            return ValidationResult.Legal;
+        }
+
         private ValidationResult ValidateEnd(GameState s, EndActivation e)
         {
             if (s.ActiveUnit.IsNone) return ValidationResult.Illegal(ReasonCodes.NotActiveUnit, "No unit is activated.");
@@ -187,13 +253,21 @@ namespace Ironwake.Core
                 case ActivateUnit a: next = DoActivate(state, a, events); break;
                 case MoveUnit m: next = DoMove(state, m, events); break;
                 case ShootAt s: next = DoShoot(state, s, events, rng); break;
+                case ChargeAt c: next = DoCharge(state, c, events, rng); break;
+                case FightUnit f: next = DoFight(state, f.Unit, f.Target, events, rng, spendAction: true); break;
                 case EndActivation e: next = DoEndActivation(state, e.Unit, events); break;
                 case PassActivation _: next = DoEndActivation(state, UnitId.None, events); break;
                 default: return new ExecutionResult(state, events);
             }
 
+            // Engagement is derived from adjacency, so it is recomputed after anything that
+            // could have moved or killed someone rather than maintained by hand.
+            next = Melee.RefreshEngagement(next);
+
+            // Round end can roll morale, so the checkpoint has to be taken after it or the
+            // stored RNG position would under-count the dice actually consumed.
+            next = CheckRoundEnd(next, events, rng);
             next = next.With(rng: rng.Checkpoint(state.Rng));
-            next = CheckRoundEnd(next, events);
 
             bool terminal = next.Phase == PhaseKind.Complete;
             if (terminal) events.Add(new MatchEndedEvent(WinnerOf(next)));
@@ -254,24 +328,67 @@ namespace Ironwake.Core
             var shooter = s.GetUnit(a.Unit);
             var target = s.GetUnit(a.Target);
 
-            var weapon = PrimaryWeaponOf(shooter);
-            var shooterStats = DefinitionOf(shooter).Stats;
-            var targetStats = DefinitionOf(target).Stats;
-
-            // ---- to hit: accuracy, minus cover ----
             var los = LineOfSight.Trace(s, shooter.Position, target.Position);
 
-            var hitModifiers = new List<RollModifier>();
+            var hitModifiers = HitModifiers(shooter);
             if (los.TargetInCover)
                 hitModifiers.Add(new RollModifier(ModifierSource.Cover, CoverModifier));
 
-            int attacks = weapon.Attacks * shooter.ModelsAlive;
-            int hits = Roll(rng, ev, RollKind.ToHit, a.Unit, a.Target,
-                            shooterStats.Accuracy, hitModifiers, attacks);
+            return ResolveAttack(
+                s, a.Unit, a.Target, PrimaryWeaponOf(shooter),
+                DefinitionOf(shooter).Stats.Accuracy, hitModifiers, ev, rng, spendAction: true);
+        }
+
+        /// <summary>
+        /// A melee exchange. Wounding, saves and damage go through exactly the same code as
+        /// shooting — only the to-hit stat and the modifier list differ.
+        /// </summary>
+        private GameState DoFight(
+            GameState s, UnitId attackerId, UnitId targetId,
+            List<GameEvent> ev, Rng rng, bool spendAction)
+        {
+            var attacker = s.GetUnit(attackerId);
+            var weapon = Melee.MeleeWeaponOf(_content, attacker);
+
+            // A charge by a unit with nothing to swing still pins the enemy; it just does no
+            // damage on arrival.
+            if (weapon == null) return s;
+
+            // Cover does not apply in melee — see Melee.CoverAppliesInMelee for the reasoning.
+            return ResolveAttack(
+                s, attackerId, targetId, weapon,
+                DefinitionOf(attacker).Stats.Melee, HitModifiers(attacker), ev, rng, spendAction);
+        }
+
+        /// <summary>Modifiers that follow the attacker around whatever it is doing.</summary>
+        private static List<RollModifier> HitModifiers(UnitState attacker)
+        {
+            var modifiers = new List<RollModifier>();
+            if (attacker.HasStatus(StatusKind.Shaken))
+                modifiers.Add(new RollModifier(ModifierSource.Shaken, Morale.ShakenModifier));
+            return modifiers;
+        }
+
+        /// <summary>
+        /// Hit, wound, save, damage. Shared by shooting and melee so the two can never drift
+        /// into different arithmetic.
+        /// </summary>
+        private GameState ResolveAttack(
+            GameState s, UnitId attackerId, UnitId targetId, WeaponDefinition weapon,
+            int toHitStat, List<RollModifier> hitModifiers,
+            List<GameEvent> ev, Rng rng, bool spendAction)
+        {
+            var attacker = s.GetUnit(attackerId);
+            var target = s.GetUnit(targetId);
+            var targetStats = DefinitionOf(target).Stats;
+
+            int attacks = weapon.Attacks * attacker.ModelsAlive;
+            int hits = Roll(rng, ev, RollKind.ToHit, attackerId, targetId,
+                            toHitStat, hitModifiers, attacks);
 
             // ---- to wound: the weapon's Power against the target's Resilience ----
             int woundTarget = Wounding.TargetFor(weapon.Power, targetStats.Resilience);
-            int wounds = Roll(rng, ev, RollKind.ToWound, a.Unit, a.Target,
+            int wounds = Roll(rng, ev, RollKind.ToWound, attackerId, targetId,
                               woundTarget, Modifiers.None, hits);
 
             // ---- save: the target's armour, worsened by the weapon's AP ----
@@ -281,15 +398,16 @@ namespace Ironwake.Core
                     ModifierSource.ArmourPiercing, -weapon.ArmourPiercing, weapon.DisplayName));
 
             // The saving unit rolls, so Roller is the target here.
-            int saved = Roll(rng, ev, RollKind.Save, a.Target, a.Unit,
+            int saved = Roll(rng, ev, RollKind.Save, targetId, attackerId,
                              targetStats.Save, saveModifiers, wounds);
 
             // ---- damage ----
             int unsaved = wounds - saved;
             int damage = unsaved * weapon.Damage;
-            ev.Add(new AttackResolvedEvent(a.Unit, a.Target, hits, wounds, saved, damage));
+            ev.Add(new AttackResolvedEvent(attackerId, targetId, hits, wounds, saved, damage));
 
             var models = target.Models.ToList();
+            int slain = 0;
             for (int w = 0; w < unsaved; w++)
             {
                 int idx = models.FindIndex(mm => !mm.IsSlain);
@@ -300,14 +418,54 @@ namespace Ironwake.Core
                 // next — a ruling, and the conventional one: a rifle that kills in one shot
                 // does not kill two men because the first was already hurt.
                 models[idx] = models[idx].TakeDamage(weapon.Damage);
-                if (models[idx].IsSlain) ev.Add(new ModelSlainEvent(a.Target, idx));
+                if (models[idx].IsSlain)
+                {
+                    slain++;
+                    ev.Add(new ModelSlainEvent(targetId, idx));
+                }
             }
 
-            var newTarget = target.With(models: models);
-            if (!newTarget.IsAlive) ev.Add(new UnitDestroyedEvent(a.Target));
+            // Morale tests against this at round end, so losses accumulate across every
+            // attack the unit suffers, shooting and melee alike.
+            var newTarget = target.With(
+                models: models,
+                modelsLostThisRound: target.ModelsLostThisRound + slain);
 
-            var newShooter = shooter.With(actionsRemaining: shooter.ActionsRemaining - 1);
-            return s.WithUnit(newShooter).WithUnit(newTarget);
+            if (!newTarget.IsAlive) ev.Add(new UnitDestroyedEvent(targetId));
+
+            var newAttacker = spendAction
+                ? attacker.With(actionsRemaining: attacker.ActionsRemaining - 1)
+                : attacker;
+
+            return s.WithUnit(newAttacker).WithUnit(newTarget);
+        }
+
+        /// <summary>
+        /// A charge: close the distance, then swing. It spends the whole activation.
+        ///
+        /// RULING: a unit with no melee weapon may still charge. It arrives, both sides become
+        /// Engaged, and it simply does no damage — which is a real tactic, because an Engaged
+        /// enemy cannot shoot. Requiring a melee weapon would make charging the preserve of
+        /// the three units that carry one and take the lockdown option away from everyone else.
+        /// </summary>
+        private GameState DoCharge(GameState s, ChargeAt a, List<GameEvent> ev, Rng rng)
+        {
+            var charger = s.GetUnit(a.Unit);
+            var approach = Melee.FindApproach(s, a.Unit, a.Target, MoveAllowanceOf(charger));
+            if (!approach.IsPossible) return s;
+
+            // The approach is emitted as a move so the client animates the run in, not a blink.
+            ev.Add(new UnitMovedEvent(a.Unit, approach.Path));
+
+            var moved = charger.With(position: approach.Destination, actionsRemaining: 0);
+            var next = s.WithUnit(moved);
+
+            // Both sides are now in melee. RefreshEngagement would catch this anyway, but
+            // setting it here means the free fight below already sees the right state.
+            next = Melee.RefreshEngagement(next);
+
+            // The free fight costs nothing further — the charge already spent everything.
+            return DoFight(next, a.Unit, a.Target, ev, rng, spendAction: false);
         }
 
         private GameState DoEndActivation(GameState s, UnitId unit, List<GameEvent> ev)
@@ -323,21 +481,26 @@ namespace Ironwake.Core
             return next.With(activePlayer: handover, activeUnit: UnitId.None);
         }
 
-        private GameState CheckRoundEnd(GameState s, List<GameEvent> ev)
+        private GameState CheckRoundEnd(GameState s, List<GameEvent> ev, Rng rng)
         {
             bool anyLeft = s.Units.Any(u => u.IsAlive && !u.HasActivated);
             if (anyLeft) return s;
 
             ev.Add(new RoundEndedEvent(s.Round, s.ScoreA, s.ScoreB));
 
-            // Match ends after 5 rounds, or when one side is wiped out.
+            // Match ends after 5 rounds, or when one side is wiped out. No morale is rolled
+            // on the last round — there is no next round for a Shaken unit to suffer through.
             bool aDead = !s.UnitsOf(PlayerId.A).Any();
             bool bDead = !s.UnitsOf(PlayerId.B).Any();
             if (s.Round >= 5 || aDead || bDead)
                 return s.With(phase: PhaseKind.Complete);
 
-            var reset = s.Units.Select(u => u.With(hasActivated: false, actionsRemaining: 0)).ToList();
-            return s.With(round: s.Round + 1, units: reset, activeUnit: UnitId.None);
+            // Morale clears last round's Shaken, tests whoever took losses, and resets the
+            // per-round counters.
+            var next = Morale.Resolve(s, _content, rng, ev);
+
+            var reset = next.Units.Select(u => u.With(hasActivated: false, actionsRemaining: 0)).ToList();
+            return next.With(round: next.Round + 1, units: reset, activeUnit: UnitId.None);
         }
 
         private static PlayerId? WinnerOf(GameState s)
@@ -388,10 +551,19 @@ namespace Ironwake.Core
                 }
 
                 var weaponId = activeDef.WeaponIds.Count > 0 ? activeDef.WeaponIds[0] : null;
+
+                // UnitsOf enumerates in the order units are stored, which is stable, so the
+                // offered actions come out in the same order every run.
                 foreach (var t in state.UnitsOf(player.Opponent))
                 {
                     var shot = new ShootAt(player, active.Id, t.Id, weaponId);
                     if (Validate(state, shot).IsLegal) list.Add(shot);
+
+                    var charge = new ChargeAt(player, active.Id, t.Id);
+                    if (Validate(state, charge).IsLegal) list.Add(charge);
+
+                    var fight = new FightUnit(player, active.Id, t.Id);
+                    if (Validate(state, fight).IsLegal) list.Add(fight);
                 }
             }
 

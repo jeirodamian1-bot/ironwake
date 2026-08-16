@@ -180,7 +180,9 @@ namespace Ironwake.Console.Tests
             var (recording, content) = Play(777UL);
 
             var shots = recording.Steps.Where(s => s.Action is ShootAt).ToList();
-            Assert.True(shots.Count > 5, $"only {shots.Count} shots were recorded");
+            // A floor to keep the assertion honest, not a target — the harness policy prefers
+            // closing to melee, so matches contain fewer volleys than they once did.
+            Assert.True(shots.Count > 2, $"only {shots.Count} shots were recorded");
 
             Assert.All(shots, step =>
             {
@@ -208,24 +210,64 @@ namespace Ironwake.Console.Tests
             Assert.Contains("\"shot\":{", html);
         }
 
+        /// <summary>
+        /// A deliberate one-shot recording: a shooter, and a target sitting in cover.
+        ///
+        /// These used to read cover out of whatever seed 777 happened to produce, which made
+        /// them hostage to unrelated rules changes — E5's charge rules altered the match and
+        /// no shot went into cover any more. Building the scenario tests the rendering instead
+        /// of the emergent behaviour.
+        /// </summary>
+        private static (MatchRecording Recording, IContentPack Content) ShotIntoCover()
+        {
+            var content = StarterPack.Load();
+            var shooterHex = Hex.Zero;
+            var targetHex = new Hex(3, 0);
+
+            var terrain = new Dictionary<Hex, TerrainKind> { { targetHex, TerrainKind.Cover } };
+
+            UnitState Make(int id, PlayerId owner, string def, Hex at) =>
+                new UnitState(new UnitId(id), owner, def, at, 0,
+                    new List<ModelState> { new ModelState(1) },
+                    new List<StatusKind>(), false, 2);
+
+            var state = new GameState(
+                round: 1, phase: PhaseKind.Activation,
+                activePlayer: PlayerId.A, activeUnit: new UnitId(1),
+                board: new BoardState(8, terrain),
+                units: new List<UnitState>
+                {
+                    Make(1, PlayerId.A, "ashguard_lineholder", shooterHex),
+                    Make(2, PlayerId.B, "cinderkin_raider", targetHex),
+                },
+                objectives: new List<ObjectiveState>(),
+                scoreA: 0, scoreB: 0, rng: new RngState(4242UL), contentVersion: content.Version);
+
+            IGameEngine engine = new StubEngine(content);
+            var shot = new ShootAt(PlayerId.A, new UnitId(1), new UnitId(2), "ash_carbine");
+            Assert.True(engine.Validate(state, shot).IsLegal);
+
+            var result = engine.Execute(state, shot);
+            var trace = new ShotTrace(shooterHex, targetHex, false, null, true);
+            var step = new RecordedStep(0, shot, result.Events, 1, result.NextState, trace);
+
+            return (new MatchRecording(4242UL, content.Version, state, new[] { step }, false), content);
+        }
+
         [Fact]
         public void CoverIsMarkedWhenTheTargetHasIt()
         {
-            var (recording, content) = Play(777UL);
-            var html = HtmlWriter.Render(recording, content);
+            var (recording, content) = ShotIntoCover();
 
-            var covered = recording.Steps.Count(s => s.Shot != null && s.Shot.TargetInCover);
-            Assert.True(covered > 0, "no shot in this match was against a target in cover");
-
-            Assert.Contains("\"cover\":true", html);
+            Assert.Contains(recording.Steps, s => s.Shot != null && s.Shot.TargetInCover);
+            Assert.Contains("\"cover\":true", HtmlWriter.Render(recording, content));
         }
 
         [Fact]
         public void TheCoverPenaltyIsVisibleInTheLoggedEvents()
         {
-            // The viewer shows Describe() text, so the reason a 4+ became a 5+ has to survive
-            // into the file rather than the number silently shifting.
-            var (recording, content) = Play(777UL);
+            // The reason a 4+ became a 5+ has to reach the file as data, not vanish.
+            var (recording, content) = ShotIntoCover();
 
             var coverRolls = recording.Steps
                 .SelectMany(s => s.Events)
@@ -234,7 +276,7 @@ namespace Ironwake.Console.Tests
                 .ToList();
 
             Assert.NotEmpty(coverRolls);
-            Assert.Contains("cover", HtmlWriter.Render(recording, content));
+            Assert.Contains("cover -1", HtmlWriter.Render(recording, content));
         }
 
         [Fact]
@@ -252,11 +294,13 @@ namespace Ironwake.Console.Tests
             Assert.Contains("\"modifiers\":", html);
             Assert.Contains("\"roller\":", html);
 
-            // A cover modifier must reach the file as its own entry.
-            Assert.Contains("cover -1", html);
-
-            // And the chip styling exists to render it.
+            // And the chip styling exists to render modifiers.
             Assert.Contains(".mod{", html);
+
+            // A modifier reaches the file as its own entry — checked on a scenario built to
+            // contain one, rather than hoping this seed's match happens to produce it.
+            var (cover, coverContent) = ShotIntoCover();
+            Assert.Contains("cover -1", HtmlWriter.Render(cover, coverContent));
         }
 
         [Fact]

@@ -79,7 +79,7 @@ than waiting to be caught by diffing console runs.
 Ironwake.sln
 ├── Ironwake.Core/              netstandard2.1, zero package references
 │   ├── State/                  Hex, Ids, GameState, Measure
-│   ├── Rules/                  Movement, LineOfSight, Wounding, Modifiers
+│   ├── Rules/                  Movement, LineOfSight, Wounding, Modifiers, Melee, Morale
 │   ├── Content/                definitions + IContentPack (types only, no loading)
 │   ├── Actions/                GameAction and subclasses
 │   ├── Events/                 GameEvent and subclasses
@@ -125,6 +125,19 @@ Ironwake.Content — keep it that way, or a JSON problem starts failing the engi
 - Sight is symmetric EXCEPT when exactly one end is `Elevated` — high ground sees over
   Obscuring, so it can see into a pocket it cannot be seen out of. That asymmetry is a rule
   and there is a test asserting it, not excluding it.
+- `StatusKind.Engaged` is DERIVED, never accumulated. `Melee.RefreshEngagement` recomputes it
+  from adjacency after every action, which is what makes "clears when no enemy is adjacent"
+  true without anyone remembering to clear it. Never set or unset it by hand.
+- A charge is a move that ends beside the target, so it goes through `Movement.FindPath`.
+  There is exactly one pathfinder; do not add a second for charges.
+- Shooting and melee share `ResolveAttack` — only the to-hit stat and the modifier list
+  differ. Cover does not apply in melee (`Melee.CoverAppliesInMelee`), which is a ruling.
+- Morale order at round end matters and gives Shaken its one-round life: clear Shaken from
+  everyone, THEN test whoever lost models, THEN reset the loss counters.
+- The RNG checkpoint is taken AFTER `CheckRoundEnd`, because morale rolls dice. Move it back
+  before and the stored RNG position silently under-counts.
+- Leaving melee is currently free — no zone of control, no parting attacks. Deferred, not
+  decided.
 - Content authoring: a unit declares its `factionId`; faction membership is derived from
   that, not authored separately. Two sources of truth for the same fact will disagree.
 - Validation collects every error before throwing. Keep it that way — fixing content one
@@ -142,4 +155,4 @@ Ironwake.Content — keep it that way, or a JSON problem starts failing the engi
 
 As of 2026-08-16: all five projects compile clean against .NET SDK 8.0.129, the stub match
 plays to completion on the starter pack, the seeded determinism check is byte-identical
-across runs, and 322 tests pass (244 Core, 53 Content, 25 Console).
+across runs, and 363 tests pass (284 Core, 54 Content, 25 Console).

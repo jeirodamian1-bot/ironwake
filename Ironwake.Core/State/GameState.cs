@@ -145,16 +145,24 @@ namespace Ironwake.Core
         public bool HasActivated { get; }
         public int ActionsRemaining { get; }
 
+        /// <summary>
+        /// Models lost since the last round cleanup. Morale tests against this at round end,
+        /// then it resets. Stored rather than derived because nothing else remembers what a
+        /// unit looked like when the round began.
+        /// </summary>
+        public int ModelsLostThisRound { get; }
+
         public UnitState(
             UnitId id, PlayerId owner, string definitionId, Hex position, int facing,
             IReadOnlyList<ModelState> models, IReadOnlyList<StatusKind> statuses,
-            bool hasActivated, int actionsRemaining)
+            bool hasActivated, int actionsRemaining, int modelsLostThisRound = 0)
         {
             Id = id; Owner = owner; DefinitionId = definitionId;
             Position = position; Facing = facing;
             Models = models ?? Array.Empty<ModelState>();
             Statuses = statuses ?? Array.Empty<StatusKind>();
             HasActivated = hasActivated; ActionsRemaining = actionsRemaining;
+            ModelsLostThisRound = modelsLostThisRound;
         }
 
         public int ModelsAlive => Models.Count(m => !m.IsSlain);
@@ -165,13 +173,32 @@ namespace Ironwake.Core
             Hex? position = null, int? facing = null,
             IReadOnlyList<ModelState> models = null,
             IReadOnlyList<StatusKind> statuses = null,
-            bool? hasActivated = null, int? actionsRemaining = null)
+            bool? hasActivated = null, int? actionsRemaining = null,
+            int? modelsLostThisRound = null)
             => new UnitState(
                 Id, Owner, DefinitionId,
                 position ?? Position, facing ?? Facing,
                 models ?? Models, statuses ?? Statuses,
                 hasActivated ?? HasActivated,
-                actionsRemaining ?? ActionsRemaining);
+                actionsRemaining ?? ActionsRemaining,
+                modelsLostThisRound ?? ModelsLostThisRound);
+
+        /// <summary>Returns this unit with <paramref name="status"/> present exactly once.</summary>
+        public UnitState WithStatus(StatusKind status)
+        {
+            if (HasStatus(status)) return this;
+            var list = new List<StatusKind>(Statuses) { status };
+            return With(statuses: list);
+        }
+
+        /// <summary>Returns this unit with <paramref name="status"/> removed.</summary>
+        public UnitState WithoutStatus(StatusKind status)
+        {
+            if (!HasStatus(status)) return this;
+            var list = new List<StatusKind>();
+            foreach (var s in Statuses) if (s != status) list.Add(s);
+            return With(statuses: list);
+        }
     }
 
     public sealed class ModelState

@@ -128,6 +128,7 @@ namespace Ironwake.ConsoleHarness.Viz
                   .Append(unit.Owner).Append("\" r=\"14\" cx=\"0\" cy=\"0\"><title id=\"ut")
                   .Append(i).Append("\">").Append(Esc(unit.Id + " " + unit.Name)).Append("</title></circle>\n");
                 sb.Append("        <text id=\"ul").Append(i).Append("\" class=\"ulabel\" x=\"0\" y=\"0\"></text>\n");
+                sb.Append("        <text id=\"us").Append(i).Append("\" class=\"ustatus\" x=\"0\" y=\"0\"></text>\n");
             }
             sb.Append("      </g>\n    </svg>\n");
 
@@ -272,6 +273,8 @@ namespace Ironwake.ConsoleHarness.Viz
                         Total = u.Models.Count,
                         Activated = u.HasActivated,
                         IsActive = state.ActiveUnit == u.Id,
+                        Engaged = u.HasStatus(StatusKind.Engaged),
+                        Shaken = u.HasStatus(StatusKind.Shaken),
                     };
                 })
                 .ToList();
@@ -301,6 +304,7 @@ namespace Ironwake.ConsoleHarness.Viz
                 Events = (events ?? Array.Empty<GameEvent>()).Select(LogEntryOf).ToList(),
                 Units = units,
                 Trail = trail.Count > 1 ? string.Join(" ", trail) : null,
+                TrailKind = step?.Action is ChargeAt ? "charge" : "move",
                 Shot = ShotViewOf(step?.Shot),
             };
         }
@@ -390,6 +394,10 @@ namespace Ironwake.ConsoleHarness.Viz
                     return $"{m.Actor} moves {m.Unit} {Math.Max(0, m.Path.Count - 1)} hex(es) to {to}.";
                 case ShootAt s:
                     return $"{s.Actor} has {s.Unit} shoot {s.Target}.";
+                case ChargeAt c:
+                    return $"{c.Actor} charges {c.Unit} into {c.Target}.";
+                case FightUnit f:
+                    return $"{f.Actor} has {f.Unit} fight {f.Target}.";
                 case EndActivation e:
                     return $"{e.Actor} ends {e.Unit}'s activation.";
                 case PassActivation p:
@@ -440,6 +448,9 @@ namespace Ironwake.ConsoleHarness.Viz
             public List<LogEntry> Events { get; set; }
             public List<UnitFrame> Units { get; set; }
             public string Trail { get; set; }
+
+            /// <summary>"charge" or "move" — a charge run-in is drawn differently.</summary>
+            public string TrailKind { get; set; }
             public ShotView Shot { get; set; }
         }
 
@@ -487,6 +498,12 @@ namespace Ironwake.ConsoleHarness.Viz
             public int Total { get; set; }
             public bool Activated { get; set; }
             public bool IsActive { get; set; }
+
+            /// <summary>Locked in melee: cannot shoot.</summary>
+            public bool Engaged { get; set; }
+
+            /// <summary>Failed a morale test: -1 to hit, cannot charge.</summary>
+            public bool Shaken { get; set; }
         }
 
         // ---- inline assets ----------------------------------------------------
@@ -522,6 +539,9 @@ svg{width:100%;height:auto;display:block;background:#0d1015;
 .objtext{fill:var(--gold);font-size:10px;font-weight:700;text-anchor:middle;pointer-events:none}
 .trail{fill:none;stroke:#ffffff;stroke-width:3;stroke-opacity:.5;
   stroke-linejoin:round;stroke-linecap:round;stroke-dasharray:6 5}
+.trail.charge{stroke:#ffd24a;stroke-width:4;stroke-opacity:.9;stroke-dasharray:none}
+.unit.engaged{stroke:#ff5a5a;stroke-width:3.5}
+.ustatus{fill:#ffd24a;font-size:13px;font-weight:800;text-anchor:middle;pointer-events:none}
 .los{stroke:#ff5a5a;stroke-width:3;stroke-opacity:.85;stroke-linecap:round}
 .los.blocked{stroke-dasharray:5 4}
 .covermark{fill:none;stroke:var(--gold);stroke-width:2.5;stroke-dasharray:4 4}
@@ -588,6 +608,9 @@ input[type=range]{flex:1;accent-color:var(--p1)}
       <span><i class=""sw swobj"" style=""border-style:dashed;transform:none;border-radius:50%""></i>Target in cover</span>
       <span><i class=""sw"" style=""background:var(--p1)""></i>Player 1</span>
       <span><i class=""sw"" style=""background:var(--p2)""></i>Player 2</span>
+      <span><i class=""sw"" style=""background:var(--gold)""></i>Charge run-in</span>
+      <span><i class=""sw"" style=""background:transparent;border-color:#ff5a5a;border-width:2px""></i>Engaged (cannot shoot)</span>
+      <span style=""color:var(--gold);font-weight:700"">! = shaken</span>
       <span>Dimmed = already activated</span>
     </div>
 ";
@@ -677,8 +700,11 @@ function draw(i) {
     for (const e of f.events) eventList.appendChild(logLine(e));
   }
 
-  if (f.trail) { trail.setAttribute('points', f.trail); trail.style.display = ''; }
-  else { trail.style.display = 'none'; }
+  if (f.trail) {
+    trail.setAttribute('points', f.trail);
+    trail.setAttribute('class', 'trail' + (f.trailKind === 'charge' ? ' charge' : ''));
+    trail.style.display = '';
+  } else { trail.style.display = 'none'; }
 
   const losLine = $('losline'), coverMark = $('covermark'), blockMark = $('blockmark');
   if (f.shot) {
@@ -722,6 +748,7 @@ function draw(i) {
     if (dead) cls += ' dead';
     else {
       if (u.activated) cls += ' activated';
+      if (u.engaged) cls += ' engaged';     // red outline: locked in melee, cannot shoot
       if (u.isActive) cls += ' active';
     }
     circle.setAttribute('class', cls);
@@ -729,15 +756,28 @@ function draw(i) {
     circle.setAttribute('cy', u.cy);
     circle.setAttribute('r', dead ? 8 : 14);
 
+    const flags = [];
+    if (dead) flags.push('destroyed');
+    else {
+      if (u.activated) flags.push('activated');
+      if (u.engaged) flags.push('engaged');
+      if (u.shaken) flags.push('shaken');
+    }
     $('ut' + idx).textContent =
       who.id + ' · ' + who.name + ' · ' + who.owner +
       ' · ' + u.alive + '/' + u.total + ' models' +
-      (dead ? ' · destroyed' : u.activated ? ' · activated' : '');
+      (flags.length ? ' · ' + flags.join(', ') : '');
 
     label.setAttribute('x', u.cx);
     label.setAttribute('y', u.cy + 4);
     label.setAttribute('class', 'ulabel' + (u.activated ? ' activated' : ''));
     label.textContent = dead ? '' : u.alive;
+
+    // A shaken unit is flagged above its counter: -1 to hit and it will not charge.
+    const status = $('us' + idx);
+    status.setAttribute('x', u.cx + 14);
+    status.setAttribute('y', u.cy - 10);
+    status.textContent = (!dead && u.shaken) ? '!' : '';
   });
 
   slider.value = at;

@@ -16,6 +16,9 @@ namespace Ironwake.Core
         /// <summary>The roller moved before acting.</summary>
         Moved = 2,
 
+        /// <summary>The roller is Shaken and its aim suffers for it.</summary>
+        Shaken = 5,
+
         /// <summary>The weapon cuts through armour, worsening a save.</summary>
         ArmourPiercing = 3,
 
@@ -65,6 +68,7 @@ namespace Ironwake.Core
                 case ModifierSource.Elevated: return "elevated";
                 case ModifierSource.Moved: return "moved";
                 case ModifierSource.ArmourPiercing: return "AP";
+                case ModifierSource.Shaken: return "shaken";
                 case ModifierSource.Ability: return "ability";
                 default: return source.ToString().ToLowerInvariant();
             }

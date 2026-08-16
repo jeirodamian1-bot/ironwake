@@ -126,6 +126,77 @@ namespace Ironwake.Core.Tests
         }
 
         [Fact]
+        public void EveryChargeAndFightLegalActionsOffersSurvivesValidate_ThroughAWholeMatch()
+        {
+            // THE INVARIANT for melee. Checked for both players at every step, so an offer
+            // the engine would then refuse cannot hide in the idle player's list.
+            var engine = new StubEngine(Content);
+            var state = SampleGame.Create(Content, 777UL);
+
+            int chargesChecked = 0, fightsChecked = 0;
+            int guard = 0;
+
+            while (state.Phase != PhaseKind.Complete && guard++ < 500)
+            {
+                foreach (var player in new[] { PlayerId.A, PlayerId.B })
+                {
+                    foreach (var action in engine.LegalActions(state, player))
+                    {
+                        if (!(action is ChargeAt) && !(action is FightUnit)) continue;
+
+                        var result = engine.Validate(state, action);
+                        Assert.True(result.IsLegal,
+                            $"LegalActions offered {action.Kind} to {player} but Validate refused it: {result}");
+
+                        if (action is ChargeAt) chargesChecked++; else fightsChecked++;
+                    }
+                }
+
+                var legal = engine.LegalActions(state, state.ActivePlayer);
+                if (legal.Count == 0) break;
+
+                var outcome = engine.Execute(state, MatchPolicy.Pick(legal));
+                state = outcome.NextState;
+                if (outcome.IsTerminal) break;
+            }
+
+            Assert.True(chargesChecked > 20, $"only {chargesChecked} charges were checked");
+            Assert.True(fightsChecked > 0, $"only {fightsChecked} fights were checked");
+        }
+
+        [Fact]
+        public void AChargeOfferedIsAChargeThatCanActuallyBeMade()
+        {
+            // Every offered charge must have a real approach, and taking it must land the
+            // unit adjacent to its target.
+            var engine = new StubEngine(Content);
+            var board = SampleGame.Create(Content, 5UL);
+
+            int checkedCharges = 0;
+
+            foreach (var unit in board.Units)
+            {
+                var state = Activated(board, unit);
+
+                foreach (var charge in engine.LegalActions(state, unit.Owner).OfType<ChargeAt>())
+                {
+                    int allowance = Content.GetUnit(unit.DefinitionId).Stats.MoveInHexes;
+                    var approach = Melee.FindApproach(state, charge.Unit, charge.Target, allowance);
+
+                    Assert.True(approach.IsPossible, $"{charge.Unit} was offered a charge with no approach");
+
+                    var after = engine.Execute(state, charge).NextState;
+                    Assert.Equal(1,
+                        after.GetUnit(charge.Unit).Position.DistanceTo(after.GetUnit(charge.Target).Position));
+
+                    checkedCharges++;
+                }
+            }
+
+            Assert.True(checkedCharges > 0, "no charges were offered at all");
+        }
+
+        [Fact]
         public void LegalActionsNeverOffersAPathThroughTerrainOrUnits()
         {
             var engine = new StubEngine(Content);

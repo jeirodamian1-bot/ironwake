@@ -16,6 +16,14 @@ namespace Ironwake.Core.Tests
     {
         public static GameAction Pick(IReadOnlyList<GameAction> legal)
         {
+            // Mirrors Ironwake.Console's MatchPolicy: aggressive, preferring to close, so
+            // that match-driving tests actually exercise charge and melee.
+            var fight = legal.FirstOrDefault(a => a is FightUnit);
+            if (fight != null) return fight;
+
+            var charge = legal.FirstOrDefault(a => a is ChargeAt);
+            if (charge != null) return charge;
+
             var shoot = legal.FirstOrDefault(a => a is ShootAt);
             if (shoot != null) return shoot;
 
