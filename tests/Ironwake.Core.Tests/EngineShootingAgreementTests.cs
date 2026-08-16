@@ -163,23 +163,48 @@ namespace Ironwake.Core.Tests
 
             // Same dice were rolled, so any change in hits comes from the target number.
             Assert.Equal(open.Roll.Results, cover.Roll.Results);
-            Assert.Equal(open.Roll.Target + 1, cover.Roll.Target);
+            Assert.Equal(open.Roll.FinalTarget + 1, cover.Roll.FinalTarget);
             Assert.True(cover.Roll.Successes < open.Roll.Successes,
                 $"cover {cover.Roll.Successes} hits vs open {open.Roll.Successes} — cover did nothing");
         }
 
         [Fact]
-        public void TheDiceEventSaysWhyTheTargetNumberMoved()
+        public void TheDiceEventCarriesTheModifierAsData()
         {
-            // The number must never shift silently: the log has to explain a 4+ becoming a 5+.
+            // The number must never shift silently, and the reason must be readable without
+            // parsing prose — a client renders these as chips.
             var open = Fire(TerrainKind.Open);
             var cover = Fire(TerrainKind.Cover);
 
-            Assert.Equal("to-hit", open.Roll.Purpose);
+            Assert.Empty(open.Roll.Modifiers);
 
-            Assert.Contains("cover", cover.Roll.Purpose);
-            Assert.Contains(open.Roll.Target.ToString(), cover.Roll.Purpose);   // the base it moved from
+            var modifier = Assert.Single(cover.Roll.Modifiers);
+            Assert.Equal(ModifierSource.Cover, modifier.Source);
+            Assert.Equal(-1, modifier.Value);
+
+            // Base and final are both on the event, so the shift is inspectable.
+            Assert.Equal(open.Roll.BaseTarget, cover.Roll.BaseTarget);
+            Assert.Equal(cover.Roll.BaseTarget + 1, cover.Roll.FinalTarget);
+
+            // And the prose still reads for a human.
             Assert.Contains("cover", cover.Roll.Describe());
+        }
+
+        [Fact]
+        public void EveryRollNamesWhoRolledIt()
+        {
+            // The attribution gap: a log line used to say "to-hit (4+)" with no way to tell
+            // whose dice they were without inferring it from the next event.
+            var shot = Fire(TerrainKind.Open);
+
+            Assert.Equal(new UnitId(1), shot.Roll.Roller);
+            Assert.Equal(new UnitId(2), shot.Roll.Target);
+            Assert.Equal(RollKind.ToHit, shot.Roll.RollKind);
+
+            // The saving unit is the one that rolls its own save.
+            Assert.Equal(new UnitId(2), shot.Save.Roller);
+            Assert.Equal(new UnitId(1), shot.Save.Target);
+            Assert.Equal(RollKind.Save, shot.Save.RollKind);
         }
 
         [Fact]
@@ -188,8 +213,8 @@ namespace Ironwake.Core.Tests
             var obscured = Fire(TerrainKind.Obscuring);
             var open = Fire(TerrainKind.Open);
 
-            Assert.Equal(open.Roll.Target + 1, obscured.Roll.Target);
-            Assert.Contains("cover", obscured.Roll.Purpose);
+            Assert.Equal(open.Roll.FinalTarget + 1, obscured.Roll.FinalTarget);
+            Assert.Contains(obscured.Roll.Modifiers, m => m.Source == ModifierSource.Cover);
         }
 
         [Fact]
@@ -199,9 +224,9 @@ namespace Ironwake.Core.Tests
             var fromTheHill = Fire(TerrainKind.Cover, shooterTerrain: TerrainKind.Elevated);
             var open = Fire(TerrainKind.Open);
 
-            Assert.Equal(open.Roll.Target, fromTheHill.Roll.Target);
-            Assert.Equal("to-hit", fromTheHill.Roll.Purpose);
-            Assert.Equal(open.Roll.Target + 1, fromTheGround.Roll.Target);
+            Assert.Equal(open.Roll.FinalTarget, fromTheHill.Roll.FinalTarget);
+            Assert.Empty(fromTheHill.Roll.Modifiers);
+            Assert.Equal(open.Roll.FinalTarget + 1, fromTheGround.Roll.FinalTarget);
         }
 
         // ---- scenario helpers -----------------------------------------------------------
@@ -234,7 +259,13 @@ namespace Ironwake.Core.Tests
 
         private sealed class Shot
         {
+            /// <summary>The to-hit roll.</summary>
             public DiceRolledEvent Roll;
+
+            /// <summary>The target's save roll.</summary>
+            public DiceRolledEvent Save;
+
+            public IReadOnlyList<GameEvent> Events;
         }
 
         /// <summary>
@@ -268,10 +299,13 @@ namespace Ironwake.Core.Tests
             Assert.True(engine.Validate(state, action).IsLegal);
             var result = engine.Execute(state, action);
 
+            var rolls = result.Events.OfType<DiceRolledEvent>().ToList();
+
             return new Shot
             {
-                Roll = result.Events.OfType<DiceRolledEvent>()
-                                    .First(e => e.Purpose.StartsWith("to-hit")),
+                Roll = rolls.First(e => e.RollKind == RollKind.ToHit),
+                Save = rolls.First(e => e.RollKind == RollKind.Save),
+                Events = result.Events,
             };
         }
     }

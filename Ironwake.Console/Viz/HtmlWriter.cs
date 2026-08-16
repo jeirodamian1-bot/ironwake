@@ -298,11 +298,46 @@ namespace Ironwake.ConsoleHarness.Viz
                 ScoreB = state.ScoreB,
                 Phase = state.Phase.ToString(),
                 Action = step?.Action == null ? fallbackAction : DescribeAction(step.Action),
-                Events = (events ?? Array.Empty<GameEvent>()).Select(e => e.Describe()).ToList(),
+                Events = (events ?? Array.Empty<GameEvent>()).Select(LogEntryOf).ToList(),
                 Units = units,
                 Trail = trail.Count > 1 ? string.Join(" ", trail) : null,
                 Shot = ShotViewOf(step?.Shot),
             };
+        }
+
+        /// <summary>
+        /// Splits a dice roll into its parts. Everything else keeps its one-line form.
+        /// </summary>
+        private static LogEntry LogEntryOf(GameEvent gameEvent)
+        {
+            if (!(gameEvent is DiceRolledEvent roll))
+                return new LogEntry { Kind = "text", Text = gameEvent.Describe() };
+
+            return new LogEntry
+            {
+                Kind = "dice",
+                Roll = RollLabel(roll.RollKind),
+                Roller = roll.Roller.ToString(),
+                Against = roll.Target.IsNone ? null : roll.Target.ToString(),
+                BaseTarget = roll.BaseTarget,
+                FinalTarget = roll.FinalTarget,
+                Impossible = Ironwake.Core.Modifiers.IsImpossible(roll.FinalTarget),
+                Modifiers = roll.Modifiers.Select(m => m.ToString()).ToList(),
+                Results = roll.Results,
+                Successes = roll.Successes,
+            };
+        }
+
+        private static string RollLabel(RollKind kind)
+        {
+            switch (kind)
+            {
+                case RollKind.ToHit: return "to-hit";
+                case RollKind.ToWound: return "to-wound";
+                case RollKind.Save: return "save";
+                case RollKind.Morale: return "morale";
+                default: return kind.ToString().ToLowerInvariant();
+            }
         }
 
         private static ShotView ShotViewOf(ShotTrace shot)
@@ -402,10 +437,33 @@ namespace Ironwake.ConsoleHarness.Viz
             public int ScoreB { get; set; }
             public string Phase { get; set; }
             public string Action { get; set; }
-            public List<string> Events { get; set; }
+            public List<LogEntry> Events { get; set; }
             public List<UnitFrame> Units { get; set; }
             public string Trail { get; set; }
             public ShotView Shot { get; set; }
+        }
+
+        /// <summary>
+        /// One line of the combat log. Dice rolls carry their parts separately so the viewer
+        /// can render modifiers as chips — it never parses the prose back apart.
+        /// </summary>
+        private sealed class LogEntry
+        {
+            /// <summary>"dice" or "text".</summary>
+            public string Kind { get; set; }
+
+            /// <summary>Describe() output, used for everything that is not a roll.</summary>
+            public string Text { get; set; }
+
+            public string Roll { get; set; }        // "to-hit", "to-wound", "save"
+            public string Roller { get; set; }
+            public string Against { get; set; }     // null when not applicable
+            public int BaseTarget { get; set; }
+            public int FinalTarget { get; set; }
+            public bool Impossible { get; set; }
+            public List<string> Modifiers { get; set; }
+            public int[] Results { get; set; }
+            public int Successes { get; set; }
         }
 
         /// <summary>The sight line for a shot, as the engine traced it.</summary>
@@ -486,8 +544,16 @@ aside h2{margin:0 0 6px;font-size:13px;color:var(--muted);font-weight:600;
 aside h2+h2{margin-top:14px}
 .action{margin:0;font-weight:600}
 ol{margin:0;padding-left:18px;max-height:44vh;overflow:auto}
-ol li{margin-bottom:4px;font-variant-numeric:tabular-nums}
+ol li{margin-bottom:6px;font-variant-numeric:tabular-nums;line-height:1.9}
 ol li.none{list-style:none;margin-left:-18px;color:var(--muted)}
+.who{font-weight:700}
+.tgt,.mod,.dice,.hits{display:inline-block;border-radius:5px;padding:1px 6px;
+  margin-right:4px;font-size:12px;border:1px solid var(--line)}
+.tgt{background:#0e1218;color:var(--ink)}
+.mod{background:#3a2a12;border-color:#6b4d1e;color:#ffcd7a}
+.mod.none{background:#3a1414;border-color:#7a3030;color:#ff9d9d}
+.dice{background:#0e1218;color:var(--muted);letter-spacing:.02em}
+.hits{background:#12261a;border-color:#255c39;color:#7ee0a3;font-weight:600}
 footer{position:sticky;bottom:0;background:var(--panel);border-top:1px solid var(--line);
   padding:10px 16px;display:flex;gap:12px;align-items:center}
 button{background:#222b38;color:var(--ink);border:1px solid var(--line);
@@ -556,6 +622,38 @@ $('meta').textContent =
 
 slider.max = frames.length - 1;
 
+// A dice roll is rendered from its parts, so each modifier is its own chip. Nothing here
+// parses the prose form apart — the structured fields ARE the data.
+function logLine(e) {
+  const li = document.createElement('li');
+
+  if (e.kind !== 'dice') { li.textContent = e.text; return li; }
+
+  const span = (cls, text) => {
+    const s = document.createElement('span');
+    if (cls) s.className = cls;
+    s.textContent = text;
+    return s;
+  };
+
+  li.appendChild(span('who', e.roller));
+  li.appendChild(document.createTextNode(' ' + e.roll + (e.against ? ' vs ' + e.against : '') + ' '));
+
+  if (e.impossible) {
+    li.appendChild(span('mod none', 'cannot'));
+  } else if (e.modifiers.length) {
+    li.appendChild(span('tgt', e.baseTarget + '+ → ' + e.finalTarget + '+'));
+    for (const m of e.modifiers) li.appendChild(span('mod', m));
+  } else {
+    li.appendChild(span('tgt', e.finalTarget + '+'));
+  }
+
+  if (e.results.length) li.appendChild(span('dice', '[' + e.results.join(',') + ']'));
+  li.appendChild(span('hits', e.successes + (e.successes === 1 ? ' success' : ' successes')));
+
+  return li;
+}
+
 function draw(i) {
   at = Math.max(0, Math.min(i, frames.length - 1));
   const f = frames[at];
@@ -576,11 +674,7 @@ function draw(i) {
     li.textContent = 'No events.';
     eventList.appendChild(li);
   } else {
-    for (const text of f.events) {
-      const li = document.createElement('li');
-      li.textContent = text;
-      eventList.appendChild(li);
-    }
+    for (const e of f.events) eventList.appendChild(logLine(e));
   }
 
   if (f.trail) { trail.setAttribute('points', f.trail); trail.style.display = ''; }

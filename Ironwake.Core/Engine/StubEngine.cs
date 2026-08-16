@@ -23,26 +23,11 @@ namespace Ironwake.Core
     {
         private readonly IContentPack _content;
 
-        /// <summary>
-        /// The one number still hardcoded. Wounding in the real ruleset compares a weapon's
-        /// Power against the target's Resilience, and that rule does not exist yet — inventing
-        /// it here would be adding a rule, not rewiring one. Until it lands every wound roll
-        /// uses this flat target, and Power/Resilience stay authored but unread.
-        /// </summary>
-        private const int StubToWound = 4;  // 4+
-
         /// <summary>Turn structure rather than a statline, so it is not content's business.</summary>
         private const int ActionsPerActivation = 2;
 
-        /// <summary>
-        /// Cover makes a target one point harder to hit. A placeholder like
-        /// <see cref="StubToWound"/> — the real modifier stack, where this becomes one entry
-        /// among several that combine in a defined order, is still to come.
-        /// </summary>
-        private const int StubCoverPenalty = 1;
-
-        /// <summary>Worst possible roll target. A 7+ on a d6 simply cannot be made.</summary>
-        private const int WorstRollTarget = 7;
+        /// <summary>Cover is -1 to hit. Every other number now comes from content.</summary>
+        private const int CoverModifier = -1;
 
         /// <param name="content">Statlines come from here. Required — the engine holds none of its own.</param>
         public StubEngine(IContentPack content)
@@ -155,7 +140,17 @@ namespace Ironwake.Core
             if (!t.IsAlive) return ValidationResult.Illegal(ReasonCodes.UnitDead, "That target is already destroyed.");
             if (t.Owner == u.Owner) return ValidationResult.Illegal(ReasonCodes.TargetFriendly, "You cannot shoot your own unit.");
 
-            int range = PrimaryWeaponOf(u)?.RangeInHexes ?? 0;
+            var weapon = PrimaryWeaponOf(u);
+            if (weapon == null)
+                return ValidationResult.Illegal(ReasonCodes.NoWeapon, "That unit carries no weapon.");
+
+            // Range 0 is what content uses to mean melee. Shooting with a maul is not a
+            // long shot, it is a category error, so it gets its own refusal.
+            if (weapon.Range <= 0)
+                return ValidationResult.Illegal(ReasonCodes.WeaponIsMelee,
+                    $"{weapon.DisplayName} is a melee weapon and cannot be fired.");
+
+            int range = weapon.RangeInHexes;
             int dist = u.Position.DistanceTo(t.Position);
             if (dist > range)
                 return ValidationResult.Illegal(ReasonCodes.OutOfRange, $"Out of range by {dist - range} hex(es).");
@@ -222,47 +217,89 @@ namespace Ironwake.Core
             return s.WithUnit(moved);
         }
 
+        /// <summary>
+        /// Roll a pool against a statline number, emit the event, return the successes.
+        ///
+        /// Every roll in the engine goes through here, so modifier application and the
+        /// impossible-target rule cannot be done differently in two places.
+        /// </summary>
+        private static int Roll(
+            Rng rng, List<GameEvent> ev, RollKind kind, UnitId roller, UnitId target,
+            int baseTarget, IReadOnlyList<RollModifier> modifiers, int diceCount)
+        {
+            int finalTarget = Modifiers.FinalTarget(baseTarget, modifiers);
+
+            // Content writes 7 to mean "cannot" — an unarmoured unit's save, for one. No dice
+            // are rolled at all in that case, rather than rolling a pool that could never
+            // succeed. The event is still emitted so the log shows the attempt.
+            if (Modifiers.IsImpossible(baseTarget))
+            {
+                ev.Add(new DiceRolledEvent(
+                    kind, roller, target, baseTarget, finalTarget, modifiers,
+                    Array.Empty<int>(), 0));
+                return 0;
+            }
+
+            var rolls = rng.RollD6(diceCount);
+            int successes = Rng.CountSuccesses(rolls, finalTarget);
+
+            ev.Add(new DiceRolledEvent(
+                kind, roller, target, baseTarget, finalTarget, modifiers, rolls, successes));
+
+            return successes;
+        }
+
         private GameState DoShoot(GameState s, ShootAt a, List<GameEvent> ev, Rng rng)
         {
             var shooter = s.GetUnit(a.Unit);
             var target = s.GetUnit(a.Target);
 
-            int attacks = (PrimaryWeaponOf(shooter)?.Attacks ?? 0) * shooter.ModelsAlive;
-            int saveTarget = DefinitionOf(target).Stats.Save;
+            var weapon = PrimaryWeaponOf(shooter);
+            var shooterStats = DefinitionOf(shooter).Stats;
+            var targetStats = DefinitionOf(target).Stats;
 
-            // Cover shifts the to-hit target. The roll's Purpose says so out loud rather than
-            // the number quietly changing — a player watching the log has to be able to see
-            // where a 4+ became a 5+.
+            // ---- to hit: accuracy, minus cover ----
             var los = LineOfSight.Trace(s, shooter.Position, target.Position);
-            int baseToHit = DefinitionOf(shooter).Stats.Accuracy;
-            int toHit = los.TargetInCover
-                ? Math.Min(WorstRollTarget, baseToHit + StubCoverPenalty)
-                : baseToHit;
-            string hitPurpose = los.TargetInCover
-                ? $"to-hit, cover -{StubCoverPenalty} (from {baseToHit}+)"
-                : "to-hit";
 
-            var hitRolls = rng.RollD6(attacks);
-            int hits = Rng.CountSuccesses(hitRolls, toHit);
-            ev.Add(new DiceRolledEvent(hitPurpose, toHit, hitRolls, hits));
+            var hitModifiers = new List<RollModifier>();
+            if (los.TargetInCover)
+                hitModifiers.Add(new RollModifier(ModifierSource.Cover, CoverModifier));
 
-            var woundRolls = rng.RollD6(hits);
-            int wounds = Rng.CountSuccesses(woundRolls, StubToWound);
-            ev.Add(new DiceRolledEvent("to-wound", StubToWound, woundRolls, wounds));
+            int attacks = weapon.Attacks * shooter.ModelsAlive;
+            int hits = Roll(rng, ev, RollKind.ToHit, a.Unit, a.Target,
+                            shooterStats.Accuracy, hitModifiers, attacks);
 
-            var saveRolls = rng.RollD6(wounds);
-            int saved = Rng.CountSuccesses(saveRolls, saveTarget);
-            ev.Add(new DiceRolledEvent("save", saveTarget, saveRolls, saved));
+            // ---- to wound: the weapon's Power against the target's Resilience ----
+            int woundTarget = Wounding.TargetFor(weapon.Power, targetStats.Resilience);
+            int wounds = Roll(rng, ev, RollKind.ToWound, a.Unit, a.Target,
+                              woundTarget, Modifiers.None, hits);
 
-            int damage = wounds - saved;
+            // ---- save: the target's armour, worsened by the weapon's AP ----
+            var saveModifiers = new List<RollModifier>();
+            if (weapon.ArmourPiercing > 0)
+                saveModifiers.Add(new RollModifier(
+                    ModifierSource.ArmourPiercing, -weapon.ArmourPiercing, weapon.DisplayName));
+
+            // The saving unit rolls, so Roller is the target here.
+            int saved = Roll(rng, ev, RollKind.Save, a.Target, a.Unit,
+                             targetStats.Save, saveModifiers, wounds);
+
+            // ---- damage ----
+            int unsaved = wounds - saved;
+            int damage = unsaved * weapon.Damage;
             ev.Add(new AttackResolvedEvent(a.Unit, a.Target, hits, wounds, saved, damage));
 
             var models = target.Models.ToList();
-            for (int d = 0; d < damage; d++)
+            for (int w = 0; w < unsaved; w++)
             {
                 int idx = models.FindIndex(mm => !mm.IsSlain);
                 if (idx < 0) break;
-                models[idx] = models[idx].TakeDamage(1);
+
+                // Each unsaved wound lands on one model for the weapon's full Damage. Excess
+                // beyond that model's remaining wounds is lost rather than spilling onto the
+                // next — a ruling, and the conventional one: a rifle that kills in one shot
+                // does not kill two men because the first was already hurt.
+                models[idx] = models[idx].TakeDamage(weapon.Damage);
                 if (models[idx].IsSlain) ev.Add(new ModelSlainEvent(a.Target, idx));
             }
 

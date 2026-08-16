@@ -124,7 +124,8 @@ namespace Ironwake.Console.Tests
                 .ToList();
 
             Assert.NotEmpty(described);
-            Assert.Contains(described, d => d.StartsWith("to-hit", StringComparison.Ordinal));
+            // The line now leads with the unit that rolled, e.g. "U1 to-hit vs U4 (4+): ...".
+            Assert.Contains(described, d => d.Contains("to-hit"));
 
             // Event text is embedded as JSON, so compare on a distinctive substring that
             // survives escaping.
@@ -229,11 +230,44 @@ namespace Ironwake.Console.Tests
             var coverRolls = recording.Steps
                 .SelectMany(s => s.Events)
                 .OfType<DiceRolledEvent>()
-                .Where(e => e.Purpose.Contains("cover"))
+                .Where(e => e.Modifiers.Any(m => m.Source == ModifierSource.Cover))
                 .ToList();
 
             Assert.NotEmpty(coverRolls);
             Assert.Contains("cover", HtmlWriter.Render(recording, content));
+        }
+
+        [Fact]
+        public void DiceRollsAreEmittedAsStructuredDataNotProse()
+        {
+            // The viewer renders each modifier as its own chip, so it must receive the parts
+            // separately. If this regresses to a single string, a client is back to parsing
+            // English to find out why a 4+ became a 5+.
+            var (recording, content) = Play(777UL);
+            var html = HtmlWriter.Render(recording, content);
+
+            Assert.Contains("\"kind\":\"dice\"", html);
+            Assert.Contains("\"baseTarget\":", html);
+            Assert.Contains("\"finalTarget\":", html);
+            Assert.Contains("\"modifiers\":", html);
+            Assert.Contains("\"roller\":", html);
+
+            // A cover modifier must reach the file as its own entry.
+            Assert.Contains("cover -1", html);
+
+            // And the chip styling exists to render it.
+            Assert.Contains(".mod{", html);
+        }
+
+        [Fact]
+        public void EveryRollInTheFileNamesTheUnitThatMadeIt()
+        {
+            var (recording, _) = Play(777UL);
+
+            var rolls = recording.Steps.SelectMany(s => s.Events).OfType<DiceRolledEvent>().ToList();
+
+            Assert.NotEmpty(rolls);
+            Assert.All(rolls, r => Assert.False(r.Roller.IsNone, "a roll had no roller"));
         }
 
         // ---- reproducible ----------------------------------------------------------

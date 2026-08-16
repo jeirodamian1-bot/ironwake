@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Text;
 
 namespace Ironwake.Core
 {
@@ -40,22 +41,104 @@ namespace Ironwake.Core
             $"{Unit} moves {Path.Count - 1} hex(es) to {(Path.Count > 0 ? Path[Path.Count - 1].ToString() : "?")}.";
     }
 
-    /// <summary>Emitted for every dice roll so the log can show the actual numbers.</summary>
+    /// <summary>Which step of a resolution a roll belongs to.</summary>
+    public enum RollKind
+    {
+        ToHit = 0,
+        ToWound = 1,
+        Save = 2,
+        Morale = 3,
+    }
+
+    /// <summary>
+    /// Emitted for every dice roll so the log can show the actual numbers.
+    ///
+    /// Everything here is structured. It used to encode the modifiers as prose in a Purpose
+    /// string, which meant a client wanting to render them had to parse English, and it did
+    /// not say WHO rolled — so a log line could not be attributed to a unit without inferring
+    /// it from whatever event happened to come next. Both are fixed: read the fields, and use
+    /// <see cref="Describe"/> only for the human-readable line.
+    /// </summary>
     public sealed class DiceRolledEvent : GameEvent
     {
-        public string Purpose { get; }      // "to-hit", "to-wound", "save", "morale"
-        public int Target { get; }          // the number needed
+        /// <summary>Named RollKind rather than Kind because <see cref="GameEvent.Kind"/> is the event type.</summary>
+        public RollKind RollKind { get; }
+
+        /// <summary>The unit that rolled.</summary>
+        public UnitId Roller { get; }
+
+        /// <summary>What it was rolled against. <see cref="UnitId.None"/> where there is no target.</summary>
+        public UnitId Target { get; }
+
+        /// <summary>The statline number before anything modified it.</summary>
+        public int BaseTarget { get; }
+
+        /// <summary>What was actually needed, after modifiers and the cap.</summary>
+        public int FinalTarget { get; }
+
+        /// <summary>Every reason the number moved, in the order they were applied.</summary>
+        public IReadOnlyList<RollModifier> Modifiers { get; }
+
         public int[] Results { get; }
         public int Successes { get; }
-        public DiceRolledEvent(string purpose, int target, int[] results, int successes)
+
+        public DiceRolledEvent(
+            RollKind rollKind, UnitId roller, UnitId target,
+            int baseTarget, int finalTarget,
+            IReadOnlyList<RollModifier> modifiers,
+            int[] results, int successes)
         {
-            Purpose = purpose; Target = target;
+            RollKind = rollKind;
+            Roller = roller;
+            Target = target;
+            BaseTarget = baseTarget;
+            FinalTarget = finalTarget;
+            Modifiers = modifiers ?? Ironwake.Core.Modifiers.None;
             Results = results ?? Array.Empty<int>();
             Successes = successes;
         }
+
         public override string Kind => "DiceRolled";
-        public override string Describe() =>
-            $"{Purpose} ({Target}+): [{string.Join(",", Results)}] → {Successes} success(es).";
+
+        /// <summary>Composed from the structured fields — the prose is a view, not the data.</summary>
+        public override string Describe()
+        {
+            var sb = new StringBuilder();
+            sb.Append(Roller).Append(' ').Append(Label(RollKind));
+            if (!Target.IsNone) sb.Append(" vs ").Append(Target);
+
+            sb.Append(" (");
+            if (Ironwake.Core.Modifiers.IsImpossible(FinalTarget))
+            {
+                // Content's "cannot" sentinel: no armour at all, for instance.
+                sb.Append("cannot");
+            }
+            else if (Modifiers.Count > 0)
+            {
+                sb.Append(BaseTarget).Append("+ → ").Append(FinalTarget).Append("+: ")
+                  .Append(Ironwake.Core.Modifiers.Describe(Modifiers));
+            }
+            else
+            {
+                sb.Append(FinalTarget).Append('+');
+            }
+            sb.Append("): [").Append(string.Join(",", Results)).Append("] → ")
+              .Append(Successes).Append(" success(es).");
+
+            return sb.ToString();
+        }
+
+        private static string Label(RollKind kind)
+        {
+            switch (kind)
+            {
+                case RollKind.ToHit: return "to-hit";
+                case RollKind.ToWound: return "to-wound";
+                case RollKind.Save: return "save";
+                case RollKind.Morale: return "morale";
+                default: return kind.ToString().ToLowerInvariant();
+            }
+        }
     }
 
     public sealed class AttackResolvedEvent : GameEvent

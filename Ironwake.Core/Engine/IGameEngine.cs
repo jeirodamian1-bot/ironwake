@@ -100,6 +100,12 @@ namespace Ironwake.Core
         public const string OutOfRange         = "OUT_OF_RANGE";
         public const string NoLineOfSight      = "NO_LINE_OF_SIGHT";
         public const string TargetFriendly     = "TARGET_FRIENDLY";
+
+        /// <summary>The weapon has no range: it is a melee weapon and cannot be shot with.</summary>
+        public const string WeaponIsMelee      = "WEAPON_IS_MELEE";
+
+        /// <summary>The unit carries nothing at all.</summary>
+        public const string NoWeapon           = "NO_WEAPON";
         public const string UnitShaken         = "UNIT_SHAKEN";
         public const string MatchComplete      = "MATCH_COMPLETE";
         public const string UnknownAction      = "UNKNOWN_ACTION";
