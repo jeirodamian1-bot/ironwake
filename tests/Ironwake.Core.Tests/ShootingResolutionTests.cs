@@ -278,25 +278,42 @@ namespace Ironwake.Core.Tests
         [Fact]
         public void AshguardLineholderShootingCinderkinRaider()
         {
-            // ash_carbine Power 4 vs raider Resilience 3 -> Power > Resilience -> 3+.
+            // ash_carbine Power 4 vs raider Resilience 4 -> equal -> 4+.
             var weapon = Content.GetWeapon("ash_carbine");
             var target = Content.GetUnit("cinderkin_raider");
 
             Assert.Equal(4, weapon.Power);
-            Assert.Equal(3, target.Stats.Resilience);
-            Assert.Equal(3, Wounding.TargetFor(weapon.Power, target.Stats.Resilience));
+            Assert.Equal(4, target.Stats.Resilience);
+            Assert.Equal(4, Wounding.TargetFor(weapon.Power, target.Stats.Resilience));
         }
 
         [Fact]
         public void CinderkinRaiderShootingAshguardLineholder()
         {
-            // cinder_spitter Power 3 vs lineholder Resilience 5 -> less than, more than half -> 5+.
+            // cinder_spitter Power 4 vs lineholder Resilience 5 -> less, more than half -> 5+.
             var weapon = Content.GetWeapon("cinder_spitter");
             var target = Content.GetUnit("ashguard_lineholder");
 
-            Assert.Equal(3, weapon.Power);
+            Assert.Equal(4, weapon.Power);
             Assert.Equal(5, target.Stats.Resilience);
             Assert.Equal(5, Wounding.TargetFor(weapon.Power, target.Stats.Resilience));
+        }
+
+        [Fact]
+        public void TheCoreMatchupIsNoWorseThanOneBandApart()
+        {
+            // E4 measured a two-band gap (3+ against 5+). One band is the durability
+            // difference the factions are meant to have; two was the bug.
+            int ashguard = Wounding.TargetFor(
+                Content.GetWeapon("ash_carbine").Power,
+                Content.GetUnit("cinderkin_raider").Stats.Resilience);
+
+            int cinderkin = Wounding.TargetFor(
+                Content.GetWeapon("cinder_spitter").Power,
+                Content.GetUnit("ashguard_lineholder").Stats.Resilience);
+
+            Assert.True(cinderkin - ashguard <= 1,
+                $"ashguard wound on {ashguard}+, cinderkin on {cinderkin}+ — that is {cinderkin - ashguard} bands apart");
         }
 
         [Fact]

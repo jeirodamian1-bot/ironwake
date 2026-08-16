@@ -84,24 +84,28 @@ namespace Ironwake.Core.Tests
         /// </summary>
         public static IContentPack ForSampleGame()
         {
+            // Mirrors the shipped starter pack. Ironwake.Core.Tests deliberately does not
+            // reference Ironwake.Content, so these are hand-copied — keep them in step when
+            // the pack is retuned, or the engine suite starts testing a fiction.
             var weapons = new[]
             {
                 new WeaponDefinition("ash_carbine", "Ash Carbine", 60, 2, 4, 0, 1),
                 new WeaponDefinition("warden_maul", "Warden's Maul", 0, 3, 5, 1, 2),
-                new WeaponDefinition("cinder_spitter", "Cinder Spitter", 50, 3, 3, 0, 1),
+                new WeaponDefinition("cinder_spitter", "Cinder Spitter", 50, 2, 4, 0, 1),
+                new WeaponDefinition("cinder_hurler", "Cinder Hurler", 40, 2, 5, 1, 2),
                 new WeaponDefinition("brute_cleaver", "Brute Cleaver", 0, 4, 5, 1, 2),
             };
 
             var units = new[]
             {
-                new UnitDefinition("ashguard_lineholder", "ashguard", "Lineholders", 60, 5,
+                new UnitDefinition("ashguard_lineholder", "ashguard", "Lineholders", 95, 5,
                     new Statline(40, 4, 4, 5, 4, 1, 6), new[] { "ash_carbine" }),
-                new UnitDefinition("ashguard_warden", "ashguard", "Warden", 110, 1,
+                new UnitDefinition("ashguard_warden", "ashguard", "Warden", 90, 1,
                     new Statline(40, 3, 3, 6, 3, 3, 8), new[] { "ash_carbine", "warden_maul" }),
-                new UnitDefinition("cinderkin_raider", "cinderkin", "Raiders", 50, 5,
-                    new Statline(60, 4, 4, 3, 6, 1, 5), new[] { "cinder_spitter" }),
-                new UnitDefinition("cinderkin_brute", "cinderkin", "Brute", 95, 1,
-                    new Statline(50, 4, 3, 5, 5, 3, 6), new[] { "cinder_spitter", "brute_cleaver" }),
+                new UnitDefinition("cinderkin_raider", "cinderkin", "Raiders", 65, 5,
+                    new Statline(60, 4, 4, 4, 6, 1, 5), new[] { "cinder_spitter" }),
+                new UnitDefinition("cinderkin_brute", "cinderkin", "Brute", 80, 1,
+                    new Statline(50, 4, 3, 5, 5, 3, 6), new[] { "cinder_hurler", "brute_cleaver" }),
             };
 
             var factions = new[]

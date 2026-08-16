@@ -3,83 +3,103 @@
     "id": "cinderkin_raider",
     "factionId": "cinderkin",
     "displayName": "Raiders",
-    "points": 50,
+    "points": 65,
     "modelCount": 5,
     "stats": {
       "move": 60,
       "accuracy": 4,
       "melee": 4,
-      "resilience": 3,
+      "resilience": 4,
       "save": 6,
       "wounds": 1,
       "nerve": 5
     },
-    "weaponIds": ["cinder_spitter"],
+    "weaponIds": [
+      "cinder_spitter"
+    ],
     "abilityIds": [],
-    "keywords": ["infantry", "core"]
+    "keywords": [
+      "infantry",
+      "core"
+    ]
   },
   {
     "id": "cinderkin_emberling",
     "factionId": "cinderkin",
     "displayName": "Emberling Swarm",
-    "points": 40,
+    "points": 50,
     "modelCount": 6,
     "stats": {
       "move": 60,
       "accuracy": 5,
       "melee": 5,
-      "resilience": 2,
+      "resilience": 3,
       "save": 7,
       "wounds": 1,
       "nerve": 4
     },
-    "weaponIds": ["cinder_spitter"],
+    "weaponIds": [
+      "cinder_spitter"
+    ],
     "abilityIds": [],
-    "keywords": ["infantry", "swarm"]
+    "keywords": [
+      "infantry",
+      "swarm"
+    ]
   },
   {
     "id": "cinderkin_sparkthrower",
     "factionId": "cinderkin",
     "displayName": "Sparkthrower Pack",
-    "points": 70,
+    "points": 55,
     "modelCount": 3,
     "stats": {
       "move": 50,
       "accuracy": 3,
       "melee": 5,
-      "resilience": 3,
+      "resilience": 4,
       "save": 6,
       "wounds": 1,
       "nerve": 5
     },
-    "weaponIds": ["spark_thrower"],
+    "weaponIds": [
+      "spark_thrower"
+    ],
     "abilityIds": [],
-    "keywords": ["infantry", "support"]
+    "keywords": [
+      "infantry",
+      "support"
+    ]
   },
   {
     "id": "cinderkin_ashrunner",
     "factionId": "cinderkin",
     "displayName": "Ashrunners",
-    "points": 65,
+    "points": 50,
     "modelCount": 4,
     "stats": {
       "move": 70,
       "accuracy": 4,
       "melee": 4,
-      "resilience": 3,
+      "resilience": 4,
       "save": 6,
       "wounds": 1,
       "nerve": 5
     },
-    "weaponIds": ["cinder_spitter"],
+    "weaponIds": [
+      "cinder_spitter"
+    ],
     "abilityIds": [],
-    "keywords": ["infantry", "scout"]
+    "keywords": [
+      "infantry",
+      "scout"
+    ]
   },
   {
     "id": "cinderkin_brute",
     "factionId": "cinderkin",
     "displayName": "Brute",
-    "points": 95,
+    "points": 80,
     "modelCount": 1,
     "stats": {
       "move": 50,
@@ -90,8 +110,14 @@
       "wounds": 3,
       "nerve": 6
     },
-    "weaponIds": ["cinder_spitter", "brute_cleaver"],
+    "weaponIds": [
+      "cinder_hurler",
+      "brute_cleaver"
+    ],
     "abilityIds": [],
-    "keywords": ["character", "elite"]
+    "keywords": [
+      "character",
+      "elite"
+    ]
   }
 ]

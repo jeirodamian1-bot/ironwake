@@ -33,8 +33,8 @@
     "id": "cinder_spitter",
     "displayName": "Cinder Spitter",
     "range": 50,
-    "attacks": 3,
-    "power": 3,
+    "attacks": 2,
+    "power": 4,
     "armourPiercing": 0,
     "damage": 1,
     "keywords": ["ranged", "rapid"]
@@ -44,10 +44,30 @@
     "displayName": "Spark Thrower",
     "range": 70,
     "attacks": 2,
-    "power": 4,
+    "power": 5,
     "armourPiercing": 1,
     "damage": 1,
     "keywords": ["ranged"]
+  },
+  {
+    "id": "cinder_hurler",
+    "displayName": "Cinder Hurler",
+    "range": 40,
+    "attacks": 2,
+    "power": 5,
+    "armourPiercing": 1,
+    "damage": 2,
+    "keywords": ["ranged", "heavy"]
+  },
+  {
+    "id": "anvil_pistol",
+    "displayName": "Anvil Pistol",
+    "range": 30,
+    "attacks": 1,
+    "power": 5,
+    "armourPiercing": 1,
+    "damage": 2,
+    "keywords": ["ranged", "sidearm"]
   },
   {
     "id": "brute_cleaver",

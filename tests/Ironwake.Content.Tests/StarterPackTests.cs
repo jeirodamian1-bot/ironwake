@@ -83,9 +83,26 @@ namespace Ironwake.Content.Tests
         }
 
         [Fact]
-        public void ThereAreSixWeapons()
+        public void ThereAreEightWeapons()
         {
-            Assert.Equal(6, ((JsonContentPack)Pack()).AllWeapons.Count);
+            // Six originals plus cinder_hurler and anvil_pistol, added so the two melee
+            // specialists are not inert while melee remains unimplemented.
+            Assert.Equal(8, ((JsonContentPack)Pack()).AllWeapons.Count);
+        }
+
+        [Fact]
+        public void EveryUnitsPrimaryWeaponCanActuallyBeFired()
+        {
+            // A unit whose first weapon has range 0 cannot shoot, and melee does not exist —
+            // it would be able to do nothing at all. This is what caught ashguard_anvilborn.
+            var pack = (JsonContentPack)Pack();
+
+            foreach (var unit in pack.AllUnits)
+            {
+                var primary = pack.GetWeapon(unit.WeaponIds[0]);
+                Assert.True(primary.Range > 0,
+                    $"{unit.Id}'s primary weapon {primary.Id} is melee, leaving it inert");
+            }
         }
 
         // ---- deterministic ordering -------------------------------------------

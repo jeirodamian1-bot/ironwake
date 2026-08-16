@@ -3,7 +3,7 @@
     "id": "ashguard_lineholder",
     "factionId": "ashguard",
     "displayName": "Lineholders",
-    "points": 60,
+    "points": 95,
     "modelCount": 5,
     "stats": {
       "move": 40,
@@ -14,15 +14,20 @@
       "wounds": 1,
       "nerve": 6
     },
-    "weaponIds": ["ash_carbine"],
+    "weaponIds": [
+      "ash_carbine"
+    ],
     "abilityIds": [],
-    "keywords": ["infantry", "core"]
+    "keywords": [
+      "infantry",
+      "core"
+    ]
   },
   {
     "id": "ashguard_bulwark",
     "factionId": "ashguard",
     "displayName": "Bulwark Company",
-    "points": 90,
+    "points": 105,
     "modelCount": 4,
     "stats": {
       "move": 30,
@@ -33,15 +38,20 @@
       "wounds": 2,
       "nerve": 7
     },
-    "weaponIds": ["ash_carbine"],
+    "weaponIds": [
+      "ash_carbine"
+    ],
     "abilityIds": [],
-    "keywords": ["infantry", "heavy"]
+    "keywords": [
+      "infantry",
+      "heavy"
+    ]
   },
   {
     "id": "ashguard_quencher",
     "factionId": "ashguard",
     "displayName": "Quencher Crew",
-    "points": 75,
+    "points": 85,
     "modelCount": 3,
     "stats": {
       "move": 30,
@@ -52,15 +62,20 @@
       "wounds": 1,
       "nerve": 6
     },
-    "weaponIds": ["ash_heavy_quencher"],
+    "weaponIds": [
+      "ash_heavy_quencher"
+    ],
     "abilityIds": [],
-    "keywords": ["infantry", "support"]
+    "keywords": [
+      "infantry",
+      "support"
+    ]
   },
   {
     "id": "ashguard_warden",
     "factionId": "ashguard",
     "displayName": "Warden",
-    "points": 110,
+    "points": 90,
     "modelCount": 1,
     "stats": {
       "move": 40,
@@ -71,15 +86,21 @@
       "wounds": 3,
       "nerve": 8
     },
-    "weaponIds": ["ash_carbine", "warden_maul"],
+    "weaponIds": [
+      "ash_carbine",
+      "warden_maul"
+    ],
     "abilityIds": [],
-    "keywords": ["character", "elite"]
+    "keywords": [
+      "character",
+      "elite"
+    ]
   },
   {
     "id": "ashguard_anvilborn",
     "factionId": "ashguard",
     "displayName": "Anvilborn",
-    "points": 130,
+    "points": 105,
     "modelCount": 1,
     "stats": {
       "move": 30,
@@ -90,8 +111,14 @@
       "wounds": 4,
       "nerve": 8
     },
-    "weaponIds": ["warden_maul"],
+    "weaponIds": [
+      "anvil_pistol",
+      "warden_maul"
+    ],
     "abilityIds": [],
-    "keywords": ["elite", "melee"]
+    "keywords": [
+      "elite",
+      "melee"
+    ]
   }
 ]
