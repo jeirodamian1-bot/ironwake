@@ -43,6 +43,19 @@ namespace Ironwake.Core
         /// if either unit does not exist.
         /// </summary>
         LosResult CheckLineOfSight(GameState state, UnitId shooter, UnitId target);
+
+        /// <summary>
+        /// Who currently holds each objective, before any scoring resolves. Null means
+        /// contested or empty.
+        ///
+        /// Scoring only happens at round end, so this is how a client shades the board
+        /// mid-round and shows a player what they stand to gain if the round closed now.
+        /// </summary>
+        /// <remarks>
+        /// Enumeration order of the result is not meaningful — sort by objective id before
+        /// rendering anything order-dependent.
+        /// </remarks>
+        IReadOnlyDictionary<ObjectiveId, PlayerId?> ProjectedControl(GameState state);
     }
 
     public sealed class ExecutionResult

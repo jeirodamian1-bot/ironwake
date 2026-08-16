@@ -99,7 +99,7 @@
     "id": "cinderkin_brute",
     "factionId": "cinderkin",
     "displayName": "Brute",
-    "points": 80,
+    "points": 105,
     "modelCount": 1,
     "stats": {
       "move": 50,

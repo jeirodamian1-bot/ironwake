@@ -28,6 +28,59 @@ namespace Ironwake.Core
         public override string Describe() => $"{Unit} activates.";
     }
 
+    /// <summary>
+    /// A charge was declared, emitted BEFORE the <see cref="UnitMovedEvent"/> for the run-in.
+    ///
+    /// Without this a pure event stream cannot tell a charge from an ordinary move — the
+    /// consequences look identical. Anything replaying events alone (a spectator, a server
+    /// log, the match viewer) needs to know the difference to animate it.
+    /// </summary>
+    public sealed class ChargeDeclaredEvent : GameEvent
+    {
+        public UnitId Charger { get; }
+        public UnitId Target { get; }
+
+        /// <summary>The approach the charger will take, including its starting hex.</summary>
+        public IReadOnlyList<Hex> Path { get; }
+
+        public ChargeDeclaredEvent(UnitId charger, UnitId target, IReadOnlyList<Hex> path)
+        {
+            Charger = charger;
+            Target = target;
+            Path = path ?? Array.Empty<Hex>();
+        }
+
+        public override string Kind => "ChargeDeclared";
+        public override string Describe() =>
+            $"{Charger} charges {Target}, {Math.Max(0, Path.Count - 1)} hex(es).";
+    }
+
+    /// <summary>Control of an objective changed hands, so the client can animate the flip.</summary>
+    public sealed class ObjectiveControlChangedEvent : GameEvent
+    {
+        public ObjectiveId Objective { get; }
+
+        /// <summary>Who held it before. Null if nobody did.</summary>
+        public PlayerId? From { get; }
+
+        /// <summary>Who holds it now. Null if it is contested or empty.</summary>
+        public PlayerId? To { get; }
+
+        public ObjectiveControlChangedEvent(ObjectiveId objective, PlayerId? from, PlayerId? to)
+        {
+            Objective = objective;
+            From = from;
+            To = to;
+        }
+
+        public override string Kind => "ObjectiveControlChanged";
+        public override string Describe()
+        {
+            string who(PlayerId? p) => p.HasValue ? p.Value.ToString() : "nobody";
+            return $"{Objective} passes from {who(From)} to {who(To)}.";
+        }
+    }
+
     public sealed class UnitMovedEvent : GameEvent
     {
         public UnitId Unit { get; }

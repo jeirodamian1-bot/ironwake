@@ -75,7 +75,7 @@
     "id": "ashguard_warden",
     "factionId": "ashguard",
     "displayName": "Warden",
-    "points": 90,
+    "points": 115,
     "modelCount": 1,
     "stats": {
       "move": 40,
@@ -100,7 +100,7 @@
     "id": "ashguard_anvilborn",
     "factionId": "ashguard",
     "displayName": "Anvilborn",
-    "points": 105,
+    "points": 140,
     "modelCount": 1,
     "stats": {
       "move": 30,

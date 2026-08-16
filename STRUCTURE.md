@@ -79,7 +79,8 @@ than waiting to be caught by diffing console runs.
 Ironwake.sln
 ├── Ironwake.Core/              netstandard2.1, zero package references
 │   ├── State/                  Hex, Ids, GameState, Measure
-│   ├── Rules/                  Movement, LineOfSight, Wounding, Modifiers, Melee, Morale
+│   ├── Rules/                  Movement, LineOfSight, Wounding, Modifiers, Melee,
+│   │                           Morale, Scoring
 │   ├── Content/                definitions + IContentPack (types only, no loading)
 │   ├── Actions/                GameAction and subclasses
 │   ├── Events/                 GameEvent and subclasses
@@ -138,6 +139,21 @@ Ironwake.Content — keep it that way, or a JSON problem starts failing the engi
   before and the stored RNG position silently under-counts.
 - Leaving melee is currently free — no zone of control, no parting attacks. Deferred, not
   decided.
+- Points come from `value = sqrt(offence x durability)`. Melee counts in FULL — the 50%
+  discount applied while melee was unimplemented was removed once E5 made it usable.
+- Objectives score ONCE, at round end, on where control stands as the round closes.
+  `ObjectiveState.ControlledBy` is that round-end record; `IGameEngine.ProjectedControl` is
+  the live view a client shades the board with. A test asserts the two agree.
+- Control needs STRICTLY more models within 3 hexes; equal is contested and pays nobody.
+  Shaken models do not count (a ruling — it is what gives morale teeth beyond -1 to hit);
+  Engaged models do.
+- Win conditions are ordered and the order IS the rule: annihilation, then 12 points, then
+  highest score at the end of round 5. A draw is a real outcome.
+- `ReplayTests` re-executes a match's action log against a fresh state and compares
+  fingerprints. Note the log comparison alone does NOT catch a bad RNG checkpoint — both
+  runs take the same wrong path. The assertion that does is
+  `TheStoredRngPositionAccountsForEveryDieRolled`, which checks Consumed advances by exactly
+  the dice each step reported. Keep it.
 - Content authoring: a unit declares its `factionId`; faction membership is derived from
   that, not authored separately. Two sources of truth for the same fact will disagree.
 - Validation collects every error before throwing. Keep it that way — fixing content one
@@ -155,4 +171,4 @@ Ironwake.Content — keep it that way, or a JSON problem starts failing the engi
 
 As of 2026-08-16: all five projects compile clean against .NET SDK 8.0.129, the stub match
 plays to completion on the starter pack, the seeded determinism check is byte-identical
-across runs, and 363 tests pass (284 Core, 54 Content, 25 Console).
+across runs, and 393 tests pass (311 Core, 54 Content, 28 Console).

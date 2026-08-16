@@ -98,13 +98,29 @@ namespace Ironwake.ConsoleHarness.Viz
             }
             sb.Append("      </g>\n");
 
-            sb.Append("      <g id=\"objectives\">\n");
-            foreach (var objective in geometry.Objectives)
+            // Control radius under everything else, so it shades rather than obscures.
+            sb.Append("      <g id=\"radius\">\n");
+            for (int i = 0; i < geometry.Objectives.Count; i++)
             {
-                sb.Append("        <polygon class=\"obj\" points=\"").Append(objective.Points).Append("\"></polygon>\n");
+                sb.Append("        <g id=\"rad").Append(i).Append("\" class=\"radius\">\n");
+                foreach (var cell in geometry.Objectives[i].RadiusHexes)
+                    sb.Append("          <polygon points=\"").Append(cell).Append("\"></polygon>\n");
+                sb.Append("        </g>\n");
+            }
+            sb.Append("      </g>\n");
+
+            sb.Append("      <g id=\"objectives\">\n");
+            for (int i = 0; i < geometry.Objectives.Count; i++)
+            {
+                var objective = geometry.Objectives[i];
+                sb.Append("        <polygon id=\"obj").Append(i).Append("\" class=\"obj\" points=\"")
+                  .Append(objective.Points).Append("\"></polygon>\n");
                 sb.Append("        <text class=\"objtext\" x=\"").Append(F(objective.Cx))
                   .Append("\" y=\"").Append(F(objective.Cy - 17)).Append("\">")
                   .Append(objective.PointValue).Append("vp</text>\n");
+                sb.Append("        <text id=\"objh").Append(i).Append("\" class=\"objhold\" x=\"")
+                  .Append(F(objective.Cx)).Append("\" y=\"").Append(F(objective.Cy + 26))
+                  .Append("\"></text>\n");
             }
             sb.Append("      </g>\n");
 
@@ -189,7 +205,7 @@ namespace Ironwake.ConsoleHarness.Viz
                     objective.Position.ToPixel(HexSize, out double ox, out double oy);
                     const double s = 13.0;
 
-                    g.Objectives.Add(new ObjectiveGeometry
+                    var geometry = new ObjectiveGeometry
                     {
                         Cx = ox,
                         Cy = oy,
@@ -198,7 +214,25 @@ namespace Ironwake.ConsoleHarness.Viz
                         Points = string.Join(" ",
                             F(ox) + "," + F(oy - s), F(ox + s) + "," + F(oy),
                             F(ox) + "," + F(oy + s), F(ox - s) + "," + F(oy)),
-                    });
+                    };
+
+                    // Every hex a model could stand in and still hold this objective.
+                    foreach (var hex in objective.Position.WithinRange(Scoring.ControlRadiusHexes))
+                    {
+                        if (!board.Contains(hex)) continue;
+                        hex.ToPixel(HexSize, out double hx, out double hy);
+
+                        var corners = new List<string>(6);
+                        for (int i = 0; i < 6; i++)
+                        {
+                            double angle = Math.PI / 180.0 * (60.0 * i - 30.0);
+                            corners.Add(F(hx + HexSize * Math.Cos(angle)) + "," +
+                                        F(hy + HexSize * Math.Sin(angle)));
+                        }
+                        geometry.RadiusHexes.Add(string.Join(" ", corners));
+                    }
+
+                    g.Objectives.Add(geometry);
                 }
 
                 const double pad = 14.0;
@@ -222,6 +256,9 @@ namespace Ironwake.ConsoleHarness.Viz
             public double Cx, Cy;
             public int PointValue;
             public string Points;
+
+            /// <summary>Outline of every hex within the control radius, as one polyline set.</summary>
+            public List<string> RadiusHexes = new List<string>();
         }
 
         // ---- payload ---------------------------------------------------------
@@ -304,8 +341,22 @@ namespace Ironwake.ConsoleHarness.Viz
                 Events = (events ?? Array.Empty<GameEvent>()).Select(LogEntryOf).ToList(),
                 Units = units,
                 Trail = trail.Count > 1 ? string.Join(" ", trail) : null,
-                TrailKind = step?.Action is ChargeAt ? "charge" : "move",
+                // Keyed off the event, not the recorded action: the viewer should see what any
+                // event-stream consumer sees.
+                TrailKind = (events ?? Array.Empty<GameEvent>()).OfType<ChargeDeclaredEvent>().Any()
+                    ? "charge" : "move",
                 Shot = ShotViewOf(step?.Shot),
+
+                // Live control, which is what the engine's ProjectedControl reports. It can
+                // differ from ObjectiveState.ControlledBy, since that only updates at round end.
+                Control = state.Objectives
+                    .OrderBy(o => o.Id.Value)
+                    .Select(o =>
+                    {
+                        var holder = Scoring.ControllerOf(state, o);
+                        return holder.HasValue ? holder.Value.ToString() : null;
+                    })
+                    .ToList(),
             };
         }
 
@@ -452,6 +503,9 @@ namespace Ironwake.ConsoleHarness.Viz
             /// <summary>"charge" or "move" — a charge run-in is drawn differently.</summary>
             public string TrailKind { get; set; }
             public ShotView Shot { get; set; }
+
+            /// <summary>Who holds each objective right now, in the same order as the geometry.</summary>
+            public List<string> Control { get; set; }
         }
 
         /// <summary>
@@ -536,7 +590,15 @@ svg{width:100%;height:auto;display:block;background:#0d1015;
 .t-Impassable{fill:var(--t-impassable)}
 .coord{fill:#5b6577;font-size:8px;text-anchor:middle;pointer-events:none}
 .obj{fill:none;stroke:var(--gold);stroke-width:2.5}
+.obj.held-P1{stroke:var(--p1);stroke-width:4}
+.obj.held-P2{stroke:var(--p2);stroke-width:4}
 .objtext{fill:var(--gold);font-size:10px;font-weight:700;text-anchor:middle;pointer-events:none}
+.objhold{font-size:10px;font-weight:700;text-anchor:middle;pointer-events:none;fill:var(--muted)}
+.objhold.held-P1{fill:var(--p1)} .objhold.held-P2{fill:var(--p2)}
+.radius polygon{fill:transparent;stroke:none}
+.radius.held-P1 polygon{fill:#4a9eff14;stroke:#4a9eff33;stroke-width:1}
+.radius.held-P2 polygon{fill:#ff8a3d14;stroke:#ff8a3d33;stroke-width:1}
+.radius.contested polygon{fill:#ffffff0a;stroke:#ffffff1f;stroke-width:1}
 .trail{fill:none;stroke:#ffffff;stroke-width:3;stroke-opacity:.5;
   stroke-linejoin:round;stroke-linecap:round;stroke-dasharray:6 5}
 .trail.charge{stroke:#ffd24a;stroke-width:4;stroke-opacity:.9;stroke-dasharray:none}
@@ -779,6 +841,20 @@ function draw(i) {
     status.setAttribute('y', u.cy - 10);
     status.textContent = (!dead && u.shaken) ? '!' : '';
   });
+
+  // Objective control, live rather than the round-end record.
+  if (f.control) {
+    f.control.forEach((holder, i) => {
+      const suffix = holder ? ' held-' + holder : ' contested';
+      const ring = $('rad' + i), marker = $('obj' + i), label = $('objh' + i);
+      if (ring) ring.setAttribute('class', 'radius' + suffix);
+      if (marker) marker.setAttribute('class', 'obj' + (holder ? ' held-' + holder : ''));
+      if (label) {
+        label.setAttribute('class', 'objhold' + suffix);
+        label.textContent = holder ? holder : 'contested';
+      }
+    });
+  }
 
   slider.value = at;
   $('counter').textContent = at + ' / ' + (frames.length - 1);

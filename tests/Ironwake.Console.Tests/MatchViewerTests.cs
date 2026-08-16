@@ -314,6 +314,65 @@ namespace Ironwake.Console.Tests
             Assert.All(rolls, r => Assert.False(r.Roller.IsNone, "a roll had no roller"));
         }
 
+        // ---- objectives ---------------------------------------------------------------
+
+        [Fact]
+        public void ObjectiveControlIsShownForEveryStep()
+        {
+            var (recording, content) = Play(777UL);
+            var html = HtmlWriter.Render(recording, content);
+
+            Assert.Contains("\"control\":", html);
+
+            // Control radius and holder markers exist to render it.
+            Assert.Contains("id=\"rad0\"", html);
+            Assert.Contains("id=\"objh0\"", html);
+            Assert.Contains(".radius.held-P1", html);
+
+            // And somebody actually holds something during this match.
+            Assert.Contains("\"control\":[", html);
+            Assert.True(html.Contains("\"P1\"") || html.Contains("\"P2\""),
+                "no objective was held by anyone in this match");
+        }
+
+        [Fact]
+        public void TheRunningScoreReachesTheFile()
+        {
+            var (recording, content) = Play(777UL);
+            var html = HtmlWriter.Render(recording, content);
+
+            Assert.Contains("id=\"scoreA\"", html);
+            Assert.Contains("\"scoreA\":", html);
+
+            // Objectives paid out at some point, so the score is not stuck at zero.
+            Assert.True(recording.FinalState.ScoreA > 0 || recording.FinalState.ScoreB > 0,
+                "nothing scored all match");
+        }
+
+        [Fact]
+        public void AChargeIsIdentifiedFromTheEventStreamNotTheAction()
+        {
+            // The viewer must see what any event-stream consumer sees.
+            var (recording, content) = Play(777UL);
+
+            var charges = recording.Steps
+                .Where(s => s.Events.OfType<ChargeDeclaredEvent>().Any())
+                .ToList();
+
+            Assert.NotEmpty(charges);
+            Assert.All(charges, s => Assert.IsType<ChargeAt>(s.Action));
+
+            // Every declared charge is followed by the move it describes.
+            foreach (var step in charges)
+            {
+                var declared = step.Events.OfType<ChargeDeclaredEvent>().First();
+                var moved = step.Events.OfType<UnitMovedEvent>().First();
+                Assert.Equal(declared.Path, moved.Path);
+            }
+
+            Assert.Contains("\"trailKind\":\"charge\"", HtmlWriter.Render(recording, content));
+        }
+
         // ---- reproducible ----------------------------------------------------------
 
         [Fact]

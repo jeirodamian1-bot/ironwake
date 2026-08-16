@@ -454,7 +454,9 @@ namespace Ironwake.Core
             var approach = Melee.FindApproach(s, a.Unit, a.Target, MoveAllowanceOf(charger));
             if (!approach.IsPossible) return s;
 
-            // The approach is emitted as a move so the client animates the run in, not a blink.
+            // Declared first, so a consumer reading only the event stream can tell this run-in
+            // from an ordinary move; then the move itself, so it animates the same way.
+            ev.Add(new ChargeDeclaredEvent(a.Unit, a.Target, approach.Path));
             ev.Add(new UnitMovedEvent(a.Unit, approach.Path));
 
             var moved = charger.With(position: approach.Destination, actionsRemaining: 0);
@@ -483,35 +485,38 @@ namespace Ironwake.Core
 
         private GameState CheckRoundEnd(GameState s, List<GameEvent> ev, Rng rng)
         {
+            // Annihilation ends a match the moment it happens, not at the next round break.
+            if (Scoring.IsMatchOver(s, atRoundEnd: false, out _))
+                return s.With(phase: PhaseKind.Complete);
+
             bool anyLeft = s.Units.Any(u => u.IsAlive && !u.HasActivated);
             if (anyLeft) return s;
 
-            ev.Add(new RoundEndedEvent(s.Round, s.ScoreA, s.ScoreB));
+            // Objectives pay out once, here, on where control stands as the round closes.
+            var next = Scoring.ScoreRound(s, ev);
 
-            // Match ends after 5 rounds, or when one side is wiped out. No morale is rolled
-            // on the last round — there is no next round for a Shaken unit to suffer through.
-            bool aDead = !s.UnitsOf(PlayerId.A).Any();
-            bool bDead = !s.UnitsOf(PlayerId.B).Any();
-            if (s.Round >= 5 || aDead || bDead)
-                return s.With(phase: PhaseKind.Complete);
+            ev.Add(new RoundEndedEvent(next.Round, next.ScoreA, next.ScoreB));
+
+            if (Scoring.IsMatchOver(next, atRoundEnd: true, out _))
+                return next.With(phase: PhaseKind.Complete);
 
             // Morale clears last round's Shaken, tests whoever took losses, and resets the
-            // per-round counters.
-            var next = Morale.Resolve(s, _content, rng, ev);
+            // per-round counters. Not rolled on the final round — there is no next round for
+            // a Shaken unit to suffer through.
+            next = Morale.Resolve(next, _content, rng, ev);
 
             var reset = next.Units.Select(u => u.With(hasActivated: false, actionsRemaining: 0)).ToList();
             return next.With(round: next.Round + 1, units: reset, activeUnit: UnitId.None);
         }
 
+        /// <summary>
+        /// Who won. Delegates to <see cref="Scoring.IsMatchOver"/> so the engine cannot decide
+        /// a winner by rules different from the ones that ended the match.
+        /// </summary>
         private static PlayerId? WinnerOf(GameState s)
         {
-            bool aAlive = s.UnitsOf(PlayerId.A).Any();
-            bool bAlive = s.UnitsOf(PlayerId.B).Any();
-            if (aAlive && !bAlive) return PlayerId.A;
-            if (bAlive && !aAlive) return PlayerId.B;
-            if (s.ScoreA > s.ScoreB) return PlayerId.A;
-            if (s.ScoreB > s.ScoreA) return PlayerId.B;
-            return null;
+            Scoring.IsMatchOver(s, atRoundEnd: true, out var winner);
+            return winner;
         }
 
         // ================= LEGAL ACTIONS =================
@@ -589,5 +594,9 @@ namespace Ironwake.Core
 
             return LineOfSight.Trace(state, from.Position, to.Position);
         }
+
+        /// <inheritdoc />
+        public IReadOnlyDictionary<ObjectiveId, PlayerId?> ProjectedControl(GameState state) =>
+            Scoring.ProjectedControl(state);
     }
 }
