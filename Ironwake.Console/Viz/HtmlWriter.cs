@@ -110,6 +110,15 @@ namespace Ironwake.ConsoleHarness.Viz
 
             sb.Append("      <polyline id=\"trail\" class=\"trail\" points=\"\"></polyline>\n");
 
+            // Line of sight for a shot: the sight line itself, a ring on a target in cover,
+            // and a cross on whatever blocked it.
+            sb.Append("      <line id=\"losline\" class=\"los\" x1=\"0\" y1=\"0\" x2=\"0\" y2=\"0\"></line>\n");
+            sb.Append("      <circle id=\"covermark\" class=\"covermark\" cx=\"0\" cy=\"0\" r=\"20\"></circle>\n");
+            sb.Append("      <g id=\"blockmark\" class=\"blockmark\">\n");
+            sb.Append("        <line id=\"blockA\" x1=\"0\" y1=\"0\" x2=\"0\" y2=\"0\"></line>\n");
+            sb.Append("        <line id=\"blockB\" x1=\"0\" y1=\"0\" x2=\"0\" y2=\"0\"></line>\n");
+            sb.Append("      </g>\n");
+
             // One circle + label per unit, reused for every frame.
             sb.Append("      <g id=\"units\">\n");
             for (int i = 0; i < payload.Units.Count; i++)
@@ -292,6 +301,35 @@ namespace Ironwake.ConsoleHarness.Viz
                 Events = (events ?? Array.Empty<GameEvent>()).Select(e => e.Describe()).ToList(),
                 Units = units,
                 Trail = trail.Count > 1 ? string.Join(" ", trail) : null,
+                Shot = ShotViewOf(step?.Shot),
+            };
+        }
+
+        private static ShotView ShotViewOf(ShotTrace shot)
+        {
+            if (shot == null) return null;
+
+            shot.From.ToPixel(HexSize, out double x1, out double y1);
+            shot.To.ToPixel(HexSize, out double x2, out double y2);
+
+            double? blockX = null, blockY = null;
+            if (shot.BlockingHex.HasValue)
+            {
+                shot.BlockingHex.Value.ToPixel(HexSize, out double bx, out double by);
+                blockX = Round(bx);
+                blockY = Round(by);
+            }
+
+            return new ShotView
+            {
+                X1 = Round(x1),
+                Y1 = Round(y1),
+                X2 = Round(x2),
+                Y2 = Round(y2),
+                Blocked = shot.Blocked,
+                Cover = shot.TargetInCover,
+                BlockX = blockX,
+                BlockY = blockY,
             };
         }
 
@@ -367,6 +405,20 @@ namespace Ironwake.ConsoleHarness.Viz
             public List<string> Events { get; set; }
             public List<UnitFrame> Units { get; set; }
             public string Trail { get; set; }
+            public ShotView Shot { get; set; }
+        }
+
+        /// <summary>The sight line for a shot, as the engine traced it.</summary>
+        private sealed class ShotView
+        {
+            public double X1 { get; set; }
+            public double Y1 { get; set; }
+            public double X2 { get; set; }
+            public double Y2 { get; set; }
+            public bool Blocked { get; set; }
+            public bool Cover { get; set; }
+            public double? BlockX { get; set; }
+            public double? BlockY { get; set; }
         }
 
         private sealed class UnitFrame
@@ -412,6 +464,10 @@ svg{width:100%;height:auto;display:block;background:#0d1015;
 .objtext{fill:var(--gold);font-size:10px;font-weight:700;text-anchor:middle;pointer-events:none}
 .trail{fill:none;stroke:#ffffff;stroke-width:3;stroke-opacity:.5;
   stroke-linejoin:round;stroke-linecap:round;stroke-dasharray:6 5}
+.los{stroke:#ff5a5a;stroke-width:3;stroke-opacity:.85;stroke-linecap:round}
+.los.blocked{stroke-dasharray:5 4}
+.covermark{fill:none;stroke:var(--gold);stroke-width:2.5;stroke-dasharray:4 4}
+.blockmark line{stroke:#ff5a5a;stroke-width:4;stroke-linecap:round}
 .unit{stroke:#0d1015;stroke-width:2}
 .unit.o-P1{fill:var(--p1)} .unit.o-P2{fill:var(--p2)}
 .unit.activated{opacity:.4}
@@ -462,6 +518,8 @@ input[type=range]{flex:1;accent-color:var(--p1)}
       <span><i class=""sw"" style=""background:var(--t-elevated)""></i>Elevated</span>
       <span><i class=""sw"" style=""background:var(--t-impassable)""></i>Impassable</span>
       <span><i class=""sw swobj""></i>Objective</span>
+      <span><i class=""sw"" style=""background:#ff5a5a""></i>Line of sight</span>
+      <span><i class=""sw swobj"" style=""border-style:dashed;transform:none;border-radius:50%""></i>Target in cover</span>
       <span><i class=""sw"" style=""background:var(--p1)""></i>Player 1</span>
       <span><i class=""sw"" style=""background:var(--p2)""></i>Player 2</span>
       <span>Dimmed = already activated</span>
@@ -527,6 +585,38 @@ function draw(i) {
 
   if (f.trail) { trail.setAttribute('points', f.trail); trail.style.display = ''; }
   else { trail.style.display = 'none'; }
+
+  const losLine = $('losline'), coverMark = $('covermark'), blockMark = $('blockmark');
+  if (f.shot) {
+    losLine.setAttribute('x1', f.shot.x1); losLine.setAttribute('y1', f.shot.y1);
+    losLine.setAttribute('x2', f.shot.x2); losLine.setAttribute('y2', f.shot.y2);
+    losLine.setAttribute('class', 'los' + (f.shot.blocked ? ' blocked' : ''));
+    losLine.style.display = '';
+
+    if (f.shot.cover) {
+      coverMark.setAttribute('cx', f.shot.x2);
+      coverMark.setAttribute('cy', f.shot.y2);
+      coverMark.style.display = '';
+    } else {
+      coverMark.style.display = 'none';
+    }
+
+    if (f.shot.blocked && f.shot.blockX !== null && f.shot.blockX !== undefined) {
+      const k = 11;
+      const a = $('blockA'), b = $('blockB');
+      a.setAttribute('x1', f.shot.blockX - k); a.setAttribute('y1', f.shot.blockY - k);
+      a.setAttribute('x2', f.shot.blockX + k); a.setAttribute('y2', f.shot.blockY + k);
+      b.setAttribute('x1', f.shot.blockX - k); b.setAttribute('y1', f.shot.blockY + k);
+      b.setAttribute('x2', f.shot.blockX + k); b.setAttribute('y2', f.shot.blockY - k);
+      blockMark.style.display = '';
+    } else {
+      blockMark.style.display = 'none';
+    }
+  } else {
+    losLine.style.display = 'none';
+    coverMark.style.display = 'none';
+    blockMark.style.display = 'none';
+  }
 
   f.units.forEach((u, idx) => {
     const who = DATA.units[idx];

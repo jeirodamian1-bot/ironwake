@@ -29,6 +29,28 @@ namespace Ironwake.ConsoleHarness.Viz
         }
     }
 
+    /// <summary>
+    /// The sight line behind a shot, kept so the viewer can draw what the engine decided
+    /// rather than re-deriving it. The engine is asked; nothing here works it out.
+    /// </summary>
+    public sealed class ShotTrace
+    {
+        public Hex From { get; }
+        public Hex To { get; }
+        public bool Blocked { get; }
+        public Hex? BlockingHex { get; }
+        public bool TargetInCover { get; }
+
+        public ShotTrace(Hex from, Hex to, bool blocked, Hex? blockingHex, bool targetInCover)
+        {
+            From = from;
+            To = to;
+            Blocked = blocked;
+            BlockingHex = blockingHex;
+            TargetInCover = targetInCover;
+        }
+    }
+
     /// <summary>One executed action and everything that came of it.</summary>
     public sealed class RecordedStep
     {
@@ -47,14 +69,18 @@ namespace Ironwake.ConsoleHarness.Viz
         /// <summary>Full snapshot after the action resolved.</summary>
         public GameState StateAfter { get; }
 
+        /// <summary>Set only when the action was a shot.</summary>
+        public ShotTrace Shot { get; }
+
         public RecordedStep(int index, GameAction action, IReadOnlyList<GameEvent> events,
-                            int roundBefore, GameState stateAfter)
+                            int roundBefore, GameState stateAfter, ShotTrace shot = null)
         {
             Index = index;
             Action = action;
             Events = events ?? Array.Empty<GameEvent>();
             RoundBefore = roundBefore;
             StateAfter = stateAfter;
+            Shot = shot;
         }
     }
 
@@ -126,9 +152,15 @@ namespace Ironwake.ConsoleHarness.Viz
                         $"The engine offered an action it then refused: {choice} → {check}");
 
                 int roundBefore = state.Round;
+
+                // Captured BEFORE execution, while the shooter and target are still where the
+                // engine saw them — a destroyed target would otherwise be traced post-mortem.
+                var shot = TraceShot(engine, state, choice);
+
                 var result = engine.Execute(state, choice);
 
-                steps.Add(new RecordedStep(steps.Count, choice, result.Events, roundBefore, result.NextState));
+                steps.Add(new RecordedStep(
+                    steps.Count, choice, result.Events, roundBefore, result.NextState, shot));
 
                 state = result.NextState;
                 if (result.IsTerminal) { completed = true; break; }
@@ -137,6 +169,21 @@ namespace Ironwake.ConsoleHarness.Viz
             if (state.Phase == PhaseKind.Complete) completed = true;
 
             return new MatchRecording(seed, initial.ContentVersion, initial, steps, completed);
+        }
+
+        /// <summary>Ask the engine about the sight line, for shots only.</summary>
+        private static ShotTrace TraceShot(IGameEngine engine, GameState state, GameAction action)
+        {
+            if (!(action is ShootAt shot)) return null;
+
+            var shooter = state.GetUnit(shot.Unit);
+            var target = state.GetUnit(shot.Target);
+            if (shooter == null || target == null) return null;
+
+            var los = engine.CheckLineOfSight(state, shot.Unit, shot.Target);
+
+            return new ShotTrace(
+                shooter.Position, target.Position, los.IsBlocked, los.BlockingHex, los.TargetInCover);
         }
     }
 }

@@ -34,6 +34,16 @@ namespace Ironwake.Core
         /// <summary>Turn structure rather than a statline, so it is not content's business.</summary>
         private const int ActionsPerActivation = 2;
 
+        /// <summary>
+        /// Cover makes a target one point harder to hit. A placeholder like
+        /// <see cref="StubToWound"/> — the real modifier stack, where this becomes one entry
+        /// among several that combine in a defined order, is still to come.
+        /// </summary>
+        private const int StubCoverPenalty = 1;
+
+        /// <summary>Worst possible roll target. A 7+ on a d6 simply cannot be made.</summary>
+        private const int WorstRollTarget = 7;
+
         /// <param name="content">Statlines come from here. Required — the engine holds none of its own.</param>
         public StubEngine(IContentPack content)
         {
@@ -150,6 +160,15 @@ namespace Ironwake.Core
             if (dist > range)
                 return ValidationResult.Illegal(ReasonCodes.OutOfRange, $"Out of range by {dist - range} hex(es).");
 
+            // Same trace LegalActions and the client-facing query use, so all three agree.
+            var los = LineOfSight.Trace(s, u.Position, t.Position);
+            if (los.IsBlocked)
+            {
+                var where = los.BlockingHex.HasValue ? $" {los.BlockingHex.Value}" : string.Empty;
+                return ValidationResult.Illegal(ReasonCodes.NoLineOfSight,
+                    $"Line of sight is blocked by the terrain at{where}.");
+            }
+
             return ValidationResult.Legal;
         }
 
@@ -209,12 +228,23 @@ namespace Ironwake.Core
             var target = s.GetUnit(a.Target);
 
             int attacks = (PrimaryWeaponOf(shooter)?.Attacks ?? 0) * shooter.ModelsAlive;
-            int toHit = DefinitionOf(shooter).Stats.Accuracy;
             int saveTarget = DefinitionOf(target).Stats.Save;
+
+            // Cover shifts the to-hit target. The roll's Purpose says so out loud rather than
+            // the number quietly changing — a player watching the log has to be able to see
+            // where a 4+ became a 5+.
+            var los = LineOfSight.Trace(s, shooter.Position, target.Position);
+            int baseToHit = DefinitionOf(shooter).Stats.Accuracy;
+            int toHit = los.TargetInCover
+                ? Math.Min(WorstRollTarget, baseToHit + StubCoverPenalty)
+                : baseToHit;
+            string hitPurpose = los.TargetInCover
+                ? $"to-hit, cover -{StubCoverPenalty} (from {baseToHit}+)"
+                : "to-hit";
 
             var hitRolls = rng.RollD6(attacks);
             int hits = Rng.CountSuccesses(hitRolls, toHit);
-            ev.Add(new DiceRolledEvent("to-hit", toHit, hitRolls, hits));
+            ev.Add(new DiceRolledEvent(hitPurpose, toHit, hitRolls, hits));
 
             var woundRolls = rng.RollD6(hits);
             int wounds = Rng.CountSuccesses(woundRolls, StubToWound);
@@ -339,6 +369,16 @@ namespace Ironwake.Core
             if (u == null || !u.IsAlive) return new Dictionary<Hex, int>();
 
             return Movement.ReachableFrom(state, unit, MoveAllowanceOf(u));
+        }
+
+        /// <inheritdoc />
+        public LosResult CheckLineOfSight(GameState state, UnitId shooter, UnitId target)
+        {
+            var from = state.GetUnit(shooter);
+            var to = state.GetUnit(target);
+            if (from == null || to == null) return LosResult.NoSuchUnit;
+
+            return LineOfSight.Trace(state, from.Position, to.Position);
         }
     }
 }

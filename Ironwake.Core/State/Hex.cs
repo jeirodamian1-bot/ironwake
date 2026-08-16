@@ -4,6 +4,21 @@ using System.Collections.Generic;
 namespace Ironwake.Core
 {
     /// <summary>
+    /// Which way a line running exactly along a hex edge should resolve.
+    ///
+    /// An enum rather than a raw epsilon so that callers never handle a double — floating
+    /// point stays sealed inside <see cref="Hex"/>, where it is the one permitted exception.
+    /// </summary>
+    public enum LineTieBreak
+    {
+        /// <summary>The historical default, matching <see cref="Hex.LineTo(Hex)"/>.</summary>
+        Positive = 0,
+
+        /// <summary>The opposite side of an ambiguous edge.</summary>
+        Negative = 1,
+    }
+
+    /// <summary>
     /// Axial hex coordinate (pointy-top layout).
     /// This is THE coordinate system for the whole project.
     /// The client converts screen taps to Hex and sends Hex to the engine.
@@ -69,17 +84,37 @@ namespace Ironwake.Core
         /// replay ever desyncs between platforms, check here first. An integer supercover
         /// line algorithm is the fallback if it becomes a problem.
         /// </remarks>
-        public IReadOnlyList<Hex> LineTo(Hex other)
+        public IReadOnlyList<Hex> LineTo(Hex other) => LineTo(other, LineTieBreak.Positive);
+
+        /// <summary>
+        /// The nudge used to break edge ties. Small enough not to disturb an unambiguous line,
+        /// large enough to dominate floating point noise. Private: the epsilon is nobody
+        /// else's business, and keeping it here is what stops doubles leaking into rules code.
+        /// </summary>
+        private const double TieBreakEpsilon = 1e-6;
+
+        /// <summary>
+        /// As <see cref="LineTo(Hex)"/>, but choosing which way an ambiguous line resolves.
+        /// </summary>
+        /// <param name="tieBreak">
+        /// A line running exactly along a hex edge is genuinely ambiguous — two different hex
+        /// sequences are equally correct — and this decides which one you get. Callers that
+        /// must not depend on an arbitrary choice (line of sight, for one) trace it both ways
+        /// and combine the answers rather than pretending one side is authoritative.
+        /// </param>
+        public IReadOnlyList<Hex> LineTo(Hex other, LineTieBreak tieBreak)
         {
             int n = DistanceTo(other);
             var result = new List<Hex>(n + 1);
             if (n == 0) { result.Add(this); return result; }
 
+            double nudge = tieBreak == LineTieBreak.Positive ? TieBreakEpsilon : -TieBreakEpsilon;
+
             for (int i = 0; i <= n; i++)
             {
                 double t = (double)i / n;
-                double q = Q + (other.Q - Q) * t + 1e-6;
-                double r = R + (other.R - R) * t + 1e-6;
+                double q = Q + (other.Q - Q) * t + nudge;
+                double r = R + (other.R - R) * t + nudge;
                 result.Add(RoundToHex(q, r));
             }
             return result;

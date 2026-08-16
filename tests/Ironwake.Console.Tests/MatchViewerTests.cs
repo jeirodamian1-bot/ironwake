@@ -171,6 +171,71 @@ namespace Ironwake.Console.Tests
             Assert.Equal(expected, Regex.Matches(html, @"<text id=""ul\d+""").Count);
         }
 
+        // ---- line of sight ----------------------------------------------------------
+
+        [Fact]
+        public void EveryShotStepCarriesItsSightLine()
+        {
+            var (recording, content) = Play(777UL);
+
+            var shots = recording.Steps.Where(s => s.Action is ShootAt).ToList();
+            Assert.True(shots.Count > 5, $"only {shots.Count} shots were recorded");
+
+            Assert.All(shots, step =>
+            {
+                Assert.NotNull(step.Shot);
+                // LegalActions never offers a blind shot, so a recorded one is always clear.
+                Assert.False(step.Shot.Blocked);
+            });
+
+            // And nothing else claims to be a shot.
+            Assert.All(recording.Steps.Where(s => !(s.Action is ShootAt)), s => Assert.Null(s.Shot));
+        }
+
+        [Fact]
+        public void TheSightLineAndCoverMarkersAreRendered()
+        {
+            var html = File.ReadAllText(WriteViewer(777UL, "match.html"));
+
+            Assert.Contains("id=\"losline\"", html);
+            Assert.Contains("id=\"covermark\"", html);
+            Assert.Contains("id=\"blockmark\"", html);
+            Assert.Contains(">Line of sight<", html);
+            Assert.Contains(">Target in cover<", html);
+
+            // The per-frame payload has to actually carry shots, or the markers never show.
+            Assert.Contains("\"shot\":{", html);
+        }
+
+        [Fact]
+        public void CoverIsMarkedWhenTheTargetHasIt()
+        {
+            var (recording, content) = Play(777UL);
+            var html = HtmlWriter.Render(recording, content);
+
+            var covered = recording.Steps.Count(s => s.Shot != null && s.Shot.TargetInCover);
+            Assert.True(covered > 0, "no shot in this match was against a target in cover");
+
+            Assert.Contains("\"cover\":true", html);
+        }
+
+        [Fact]
+        public void TheCoverPenaltyIsVisibleInTheLoggedEvents()
+        {
+            // The viewer shows Describe() text, so the reason a 4+ became a 5+ has to survive
+            // into the file rather than the number silently shifting.
+            var (recording, content) = Play(777UL);
+
+            var coverRolls = recording.Steps
+                .SelectMany(s => s.Events)
+                .OfType<DiceRolledEvent>()
+                .Where(e => e.Purpose.Contains("cover"))
+                .ToList();
+
+            Assert.NotEmpty(coverRolls);
+            Assert.Contains("cover", HtmlWriter.Render(recording, content));
+        }
+
         // ---- reproducible ----------------------------------------------------------
 
         [Fact]

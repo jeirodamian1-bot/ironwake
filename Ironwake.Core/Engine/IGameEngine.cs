@@ -34,6 +34,15 @@ namespace Ironwake.Core
         /// anything order-dependent.
         /// </remarks>
         IReadOnlyDictionary<Hex, int> ReachableHexes(GameState state, UnitId unit);
+
+        /// <summary>
+        /// Whether the shooter can see the target, and whether the target has cover.
+        ///
+        /// The client uses this to grey out targets and to explain why — the engine decides,
+        /// the client only renders the answer. Returns a blocked result with no blocking hex
+        /// if either unit does not exist.
+        /// </summary>
+        LosResult CheckLineOfSight(GameState state, UnitId shooter, UnitId target);
     }
 
     public sealed class ExecutionResult

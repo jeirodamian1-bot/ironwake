@@ -47,10 +47,6 @@ crashlytics-build.properties
 # Match viewers: dotnet run --project Ironwake.Console -- --html match.html
 match.html
 
-# ---------- Local only, never published ----------
-CLAUDE.md
-Ironwake-README.md
-
 # ---------- OS ----------
 .DS_Store
 Thumbs.db
