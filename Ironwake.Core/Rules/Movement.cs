@@ -24,9 +24,9 @@ namespace Ironwake.Core
     ///
     /// Everything that asks "can this unit stand there?" or "how does it get there?" comes
     /// through here. That matters: before this existed, LegalActions built paths with
-    /// <see cref="Hex.LineTo"/> — a straight line that ignores terrain and occupancy — while
-    /// validation applied the real rules, so the engine offered moves it then refused. One
-    /// blocking predicate shared by both is what stops that happening again.
+    /// <see cref="Hex.LineTo(Hex)"/> — a straight line that ignores terrain and occupancy —
+    /// while validation applied the real rules, so the engine offered moves it then refused.
+    /// One blocking predicate shared by both is what stops that happening again.
     /// </summary>
     public static class Movement
     {
@@ -34,7 +34,9 @@ namespace Ironwake.Core
         /// The single blocking rule. Validation and pathfinding both call this, so they
         /// cannot disagree about what a legal destination is.
         /// </summary>
-        /// <param name="mover">Its own hex never blocks it.</param>
+        /// <param name="state">The board and units to judge against.</param>
+        /// <param name="mover">The unit trying to enter. Its own hex never blocks it.</param>
+        /// <param name="hex">The hex being entered.</param>
         public static HexBlock BlockingReason(GameState state, UnitId mover, Hex hex)
         {
             if (state == null) throw new ArgumentNullException(nameof(state));

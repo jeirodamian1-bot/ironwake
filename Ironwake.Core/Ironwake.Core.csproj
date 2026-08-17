@@ -9,6 +9,10 @@
     <RootNamespace>Ironwake.Core</RootNamespace>
     <AssemblyName>Ironwake.Core</AssemblyName>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <!-- The XML doc file is kept: it gives IntelliSense to anything consuming the
+         DLL. CS1591 (missing comment on a public member) is silenced because an
+         absent comment is not a defect; a WRONG one is, and those still warn. -->
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
     <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
   </PropertyGroup>
 

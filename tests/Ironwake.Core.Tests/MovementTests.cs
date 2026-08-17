@@ -43,7 +43,7 @@ namespace Ironwake.Core.Tests
         /// <summary>Mover is unit 1 at <paramref name="moverPos"/>; every other entry becomes a blocker.</summary>
         private static GameState Board(
             int radius, Hex moverPos,
-            Dictionary<Hex, TerrainKind>? terrain = null,
+            Dictionary<Hex, TerrainKind> terrain = null,
             params (Hex Pos, PlayerId Owner)[] others)
         {
             var units = new List<UnitState> { Unit(1, PlayerId.A, MoverDef, moverPos) };

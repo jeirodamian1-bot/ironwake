@@ -3,7 +3,12 @@
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
-    <Nullable>enable</Nullable>
+    <!-- Matches Core, Content and Console, which are all nullable-disable. With the
+         template default of 'enable' the analysis only ever flagged Core's
+         nullable-oblivious types, and annotating around it would have made
+         MatchPolicy.cs diverge textually from the copy in Ironwake.Console — the
+         one file that most needs to stay comparable. -->
+    <Nullable>disable</Nullable>
 
     <IsPackable>false</IsPackable>
     <IsTestProject>true</IsTestProject>

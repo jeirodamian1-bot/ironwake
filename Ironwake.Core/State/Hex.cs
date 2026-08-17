@@ -96,6 +96,7 @@ namespace Ironwake.Core
         /// <summary>
         /// As <see cref="LineTo(Hex)"/>, but choosing which way an ambiguous line resolves.
         /// </summary>
+        /// <param name="other">The hex the line runs to.</param>
         /// <param name="tieBreak">
         /// A line running exactly along a hex edge is genuinely ambiguous — two different hex
         /// sequences are equally correct — and this decides which one you get. Callers that
