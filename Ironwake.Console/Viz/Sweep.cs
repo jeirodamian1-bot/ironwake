@@ -82,6 +82,8 @@ namespace Ironwake.ConsoleHarness.Viz
 
                 int steps = 0;
                 bool finished = false;
+                bool decided = false;
+                PlayerId? winner = null;
 
                 while (state.Phase != PhaseKind.Complete && steps < guard)
                 {
@@ -90,6 +92,16 @@ namespace Ironwake.ConsoleHarness.Viz
 
                     var outcome = engine.Execute(state, MatchPolicy.Pick(legal));
                     steps++;
+
+                    // The ENGINE decides who won. Re-deriving it here would be the win rule
+                    // implemented twice, and the two copies would disagree the moment the
+                    // rule changed — which is exactly what happened when annihilation stopped
+                    // outranking points and this sweep went on reporting the old ordering.
+                    foreach (var ended in outcome.Events.OfType<MatchEndedEvent>())
+                    {
+                        winner = ended.Winner;
+                        decided = true;
+                    }
 
                     foreach (var attack in outcome.Events.OfType<AttackResolvedEvent>())
                     {
@@ -118,13 +130,12 @@ namespace Ironwake.ConsoleHarness.Viz
                 result.TotalScoreA += state.ScoreA;
                 result.TotalScoreB += state.ScoreB;
 
-                bool aAlive = state.Units.Any(u => u.Owner == PlayerId.A && u.IsAlive);
-                bool bAlive = state.Units.Any(u => u.Owner == PlayerId.B && u.IsAlive);
+                // A match that never emitted MatchEnded hit the step guard; it is counted as
+                // unfinished above and does not get a verdict invented for it here.
+                if (!decided) continue;
 
-                if (!aAlive && bAlive) result.WinsB++;
-                else if (!bAlive && aAlive) result.WinsA++;
-                else if (state.ScoreA > state.ScoreB) result.WinsA++;
-                else if (state.ScoreB > state.ScoreA) result.WinsB++;
+                if (winner == PlayerId.A) result.WinsA++;
+                else if (winner == PlayerId.B) result.WinsB++;
                 else result.Draws++;
             }
 

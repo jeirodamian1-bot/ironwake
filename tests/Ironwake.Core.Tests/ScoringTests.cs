@@ -248,8 +248,11 @@ namespace Ironwake.Core.Tests
         // ---- win conditions --------------------------------------------------------------
 
         [Fact]
-        public void AWipedOutSideLosesImmediatelyWhateverTheScore()
+        public void AWipeEndsTheMatchButIsStillDecidedOnScore()
         {
+            // THE RULING: annihilation ends the match, it does not win it. Wiping the enemy
+            // out while behind on points is a loss — this is a mission game, not an
+            // elimination game.
             var state = Field(Hex.Zero, 2,
                     Trooper(1, PlayerId.A, new Hex(1, 0), models: 1),
                     Trooper(2, PlayerId.B, new Hex(-1, 0), models: 1))
@@ -259,7 +262,37 @@ namespace Ironwake.Core.Tests
                 models: new List<ModelState> { new ModelState(0, isSlain: true) }));
 
             Assert.True(Scoring.IsMatchOver(wiped, atRoundEnd: false, out var winner));
+            Assert.Equal(PlayerId.B, winner);   // wiped out, and wins on points
+        }
+
+        [Fact]
+        public void AWipeWhileAheadStillWins()
+        {
+            var state = Field(Hex.Zero, 2,
+                    Trooper(1, PlayerId.A, new Hex(1, 0), models: 1),
+                    Trooper(2, PlayerId.B, new Hex(-1, 0), models: 1))
+                .With(scoreA: 6, scoreB: 2);
+
+            var wiped = state.WithUnit(state.GetUnit(new UnitId(2)).With(
+                models: new List<ModelState> { new ModelState(0, isSlain: true) }));
+
+            Assert.True(Scoring.IsMatchOver(wiped, atRoundEnd: false, out var winner));
             Assert.Equal(PlayerId.A, winner);
+        }
+
+        [Fact]
+        public void AWipeOnLevelScoreIsADraw()
+        {
+            var state = Field(Hex.Zero, 2,
+                    Trooper(1, PlayerId.A, new Hex(1, 0), models: 1),
+                    Trooper(2, PlayerId.B, new Hex(-1, 0), models: 1))
+                .With(scoreA: 4, scoreB: 4);
+
+            var wiped = state.WithUnit(state.GetUnit(new UnitId(2)).With(
+                models: new List<ModelState> { new ModelState(0, isSlain: true) }));
+
+            Assert.True(Scoring.IsMatchOver(wiped, atRoundEnd: false, out var winner));
+            Assert.Null(winner);
         }
 
         [Theory]
@@ -316,9 +349,10 @@ namespace Ironwake.Core.Tests
         }
 
         [Fact]
-        public void AnnihilationOutranksThePointsThreshold()
+        public void ThePointsThresholdOutranksAnnihilation()
         {
-            // Order matters: being wiped out loses even from 20 points ahead.
+            // Order matters, and it reversed: reaching the threshold wins even if the
+            // scoring side is wiped out in the same breath.
             var state = Field(Hex.Zero, 2,
                     Trooper(1, PlayerId.A, new Hex(1, 0), models: 1),
                     Trooper(2, PlayerId.B, new Hex(-1, 0), models: 1))
@@ -328,6 +362,23 @@ namespace Ironwake.Core.Tests
                 models: new List<ModelState> { new ModelState(0, isSlain: true) }));
 
             Assert.True(Scoring.IsMatchOver(wiped, atRoundEnd: true, out var winner));
+            Assert.Equal(PlayerId.A, winner);
+        }
+
+        [Fact]
+        public void MutualAnnihilationIsDecidedOnScore()
+        {
+            var state = Field(Hex.Zero, 2,
+                    Trooper(1, PlayerId.A, new Hex(1, 0), models: 1),
+                    Trooper(2, PlayerId.B, new Hex(-1, 0), models: 1))
+                .With(scoreA: 3, scoreB: 5);
+
+            var dead = new List<ModelState> { new ModelState(0, isSlain: true) };
+            var wiped = state
+                .WithUnit(state.GetUnit(new UnitId(1)).With(models: dead))
+                .WithUnit(state.GetUnit(new UnitId(2)).With(models: dead));
+
+            Assert.True(Scoring.IsMatchOver(wiped, atRoundEnd: false, out var winner));
             Assert.Equal(PlayerId.B, winner);
         }
     }

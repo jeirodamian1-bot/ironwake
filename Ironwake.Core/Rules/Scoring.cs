@@ -142,47 +142,61 @@ namespace Ironwake.Core
         /// Is the match over, and who won? Null winner with <c>true</c> is a draw.
         ///
         /// Evaluated in a fixed order, and the order is the rule:
-        ///   1. a side with no living units loses immediately, whatever the score,
-        ///   2. otherwise <see cref="PointsToWin"/> ends it the moment it is reached,
-        ///   3. otherwise the match runs to the end of round <see cref="FinalRound"/> and the
-        ///      higher score wins; equal is a draw.
+        ///   1. <see cref="PointsToWin"/> ends it the moment it is reached,
+        ///   2. otherwise the match runs to the end of round <see cref="FinalRound"/> and the
+        ///      higher score wins,
+        ///   3. otherwise a side with no living units ends the match NOW — and it is still
+        ///      decided on score.
+        ///
+        /// THE RULING, and it is the one that decides what game this is: ANNIHILATION ENDS
+        /// THE MATCH BUT DOES NOT WIN IT. Wiping the enemy out while behind on points is a
+        /// loss. This is a mission-objective game, not an elimination game, and the previous
+        /// ordering — where a wipe won outright — made objectives decorative: a faction could
+        /// out-score its opponent three to one and still lose three matches in four.
+        ///
+        /// A consequence worth knowing: a wipe stops the match immediately, so the wiping
+        /// player forfeits whatever they would have scored when that round closed. Killing
+        /// the last enemy model while one point behind loses the match.
+        ///
+        /// Every branch decides on score, and equal scores are a draw in all of them — a draw
+        /// is a real outcome here, not a failure to decide.
         /// </summary>
         public static bool IsMatchOver(GameState state, bool atRoundEnd, out PlayerId? winner)
         {
             if (state == null) throw new ArgumentNullException(nameof(state));
 
-            bool aAlive = HasLivingUnits(state, PlayerId.A);
-            bool bAlive = HasLivingUnits(state, PlayerId.B);
-
-            // 1. Annihilation, checked continuously rather than only at round end.
-            if (!aAlive || !bAlive)
-            {
-                winner = aAlive ? PlayerId.A : bAlive ? (PlayerId?)PlayerId.B : null;
-                return true;
-            }
-
-            // 2. The points threshold. Only reachable at round end, since that is the only
+            // 1. The points threshold. Only reachable at round end, since that is the only
             //    time anything scores, but checked here so the rule lives in one place.
             if (state.ScoreA >= PointsToWin || state.ScoreB >= PointsToWin)
             {
-                winner = state.ScoreA > state.ScoreB ? PlayerId.A
-                       : state.ScoreB > state.ScoreA ? (PlayerId?)PlayerId.B
-                       : null;
+                winner = HigherScorer(state);
                 return true;
             }
 
-            // 3. Time. A draw is a real outcome here, not a failure to decide.
+            // 2. Time.
             if (atRoundEnd && state.Round >= FinalRound)
             {
-                winner = state.ScoreA > state.ScoreB ? PlayerId.A
-                       : state.ScoreB > state.ScoreA ? (PlayerId?)PlayerId.B
-                       : null;
+                winner = HigherScorer(state);
+                return true;
+            }
+
+            // 3. Annihilation, checked continuously rather than only at round end. It ends
+            //    the match; the score decides it.
+            if (!HasLivingUnits(state, PlayerId.A) || !HasLivingUnits(state, PlayerId.B))
+            {
+                winner = HigherScorer(state);
                 return true;
             }
 
             winner = null;
             return false;
         }
+
+        /// <summary>Whoever is ahead, or null when level. Every ending is decided this way.</summary>
+        private static PlayerId? HigherScorer(GameState state) =>
+            state.ScoreA > state.ScoreB ? PlayerId.A
+          : state.ScoreB > state.ScoreA ? (PlayerId?)PlayerId.B
+          : null;
 
         private static bool HasLivingUnits(GameState state, PlayerId player)
         {

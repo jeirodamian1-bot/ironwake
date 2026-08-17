@@ -158,8 +158,12 @@ Ironwake.Content — keep it that way, or a JSON problem starts failing the engi
 - Control needs STRICTLY more models within 3 hexes; equal is contested and pays nobody.
   Shaken models do not count (a ruling — it is what gives morale teeth beyond -1 to hit);
   Engaged models do.
-- Win conditions are ordered and the order IS the rule: annihilation, then 12 points, then
-  highest score at the end of round 5. A draw is a real outcome.
+- Win conditions are ordered and the order IS the rule: 12 points, then the end of round 5,
+  then annihilation. ANNIHILATION ENDS THE MATCH BUT DOES NOT WIN IT — every ending is
+  decided on score, so wiping the enemy while behind on points is a loss. This is a
+  mission-objective game, not an elimination game. A draw is a real outcome.
+- A wipe stops the match immediately, so the wiping player forfeits whatever they would have
+  scored when that round closed.
 - `ReplayTests` re-executes a match's action log against a fresh state and compares
   fingerprints. Note the log comparison alone does NOT catch a bad RNG checkpoint — both
   runs take the same wrong path. The assertion that does is
@@ -170,6 +174,10 @@ Ironwake.Content — keep it that way, or a JSON problem starts failing the engi
 - `SampleGame` is matched on POINTS (305 v 300), not unit count — three Ashguard against
   four Cinderkin. Matching unit counts gave Ashguard a 30% points advantage and made every
   balance sweep before E7 a rigged fight. Keep it points-matched.
+- The sweep takes its verdict from the engine's `MatchEndedEvent`, never from its own
+  arithmetic. It once re-derived the winner itself, and the copy went stale the moment the
+  win ordering changed — the sweep reported the old rule while the engine used the new one,
+  making a fundamental change look like a no-op. There is a test pinning this.
 - The balance instrument is `--sweep N`, deterministic from a base seed:
   `dotnet run --project Ironwake.Console -- --sweep 200 --seed 1`. Compare two runs at the
   same base seed or the comparison is meaningless.
@@ -193,4 +201,4 @@ Ironwake.Content — keep it that way, or a JSON problem starts failing the engi
 
 As of 2026-08-16: all five projects compile clean against .NET SDK 8.0.129, the stub match
 plays to completion on the starter pack, the seeded determinism check is byte-identical
-across runs, and 398 tests pass (316 Core, 54 Content, 28 Console).
+across runs, and 403 tests pass (319 Core, 54 Content, 30 Console).

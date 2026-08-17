@@ -373,6 +373,66 @@ namespace Ironwake.Console.Tests
             Assert.Contains("\"trailKind\":\"charge\"", HtmlWriter.Render(recording, content));
         }
 
+        // ---- the sweep -----------------------------------------------------------------
+
+        [Fact]
+        public void TheSweepTakesItsVerdictFromTheEngineNotItsOwnArithmetic()
+        {
+            // Re-deriving the winner in the harness is the win rule implemented twice. It was,
+            // and the two copies disagreed the moment annihilation stopped outranking points:
+            // the sweep went on reporting the old ordering while the engine used the new one.
+            var content = StarterPack.Load();
+            IGameEngine engine = new RulesEngine(content);
+
+            var sweep = Sweep.Run(content, matches: 40, baseSeed: 1UL);
+
+            // Every match the sweep counted must match the engine's own MatchEnded verdict.
+            int wins = 0;
+            for (ulong seed = 1; seed <= 40; seed++)
+            {
+                var state = SampleGame.Create(content, seed);
+                PlayerId? winner = null;
+                bool decided = false;
+
+                for (int step = 0; step < 500 && state.Phase != PhaseKind.Complete; step++)
+                {
+                    var legal = engine.LegalActions(state, state.ActivePlayer);
+                    if (legal.Count == 0) break;
+
+                    var outcome = engine.Execute(state, MatchPolicy.Pick(legal));
+                    foreach (var ended in outcome.Events.OfType<MatchEndedEvent>())
+                    {
+                        winner = ended.Winner;
+                        decided = true;
+                    }
+                    state = outcome.NextState;
+                    if (outcome.IsTerminal) break;
+                }
+
+                Assert.True(decided, $"seed {seed} never produced a MatchEnded event");
+                if (winner == PlayerId.A) wins++;
+            }
+
+            Assert.Equal(wins, sweep.WinsA);
+            Assert.Equal(40, sweep.WinsA + sweep.WinsB + sweep.Draws + sweep.Unfinished);
+        }
+
+        [Fact]
+        public void TheSweepIsReproducibleFromItsBaseSeed()
+        {
+            var content = StarterPack.Load();
+
+            var first = Sweep.Run(content, matches: 25, baseSeed: 7UL);
+            var second = Sweep.Run(content, matches: 25, baseSeed: 7UL);
+
+            Assert.Equal(first.WinsA, second.WinsA);
+            Assert.Equal(first.WinsB, second.WinsB);
+            Assert.Equal(first.Draws, second.Draws);
+            Assert.Equal(first.TotalScoreA, second.TotalScoreA);
+            Assert.Equal(first.TotalScoreB, second.TotalScoreB);
+            Assert.Equal(Sweep.Report(first, content, 7UL), Sweep.Report(second, content, 7UL));
+        }
+
         // ---- reproducible ----------------------------------------------------------
 
         [Fact]
