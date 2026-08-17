@@ -61,6 +61,12 @@ Balance sweep — plays N matches from a base seed and reports outcomes and dama
 dotnet run --project Ironwake.Console -- --sweep 200 --seed 1
 ```
 
+Playable hotseat client — one command, no internet, both sides played locally:
+
+```bash
+dotnet run --project Ironwake.Client        # then open http://localhost:5170
+```
+
 Visual match viewer — writes one self-contained HTML file and prints its absolute path:
 
 ```bash
@@ -94,6 +100,7 @@ Ironwake.sln
 │   └── Engine/                 IGameEngine, RulesEngine, SampleGame
 ├── Ironwake.Content/           netstandard2.1, System.Text.Json — loading + validation
 │   └── StarterPack/            authored JSON, copied to output on build
+├── Ironwake.Client/            net8.0 hotseat client; local host + one page, zero packages
 ├── Ironwake.Console/           net8.0 headless harness; the composition root
 │   └── Viz/                    match recorder, HTML viewer, balance sweep
 └── tests/
@@ -184,6 +191,16 @@ Ironwake.Content — keep it that way, or a JSON problem starts failing the engi
   rate further than any rule or content change: charge-first vs shoot-first, objective-blind
   vs objective-aware. Treat a sweep as a measurement of engine-plus-policy, and never
   compare two sweeps taken with different policies.
+- `Ironwake.Client` is a local host, NOT Blazor WebAssembly. WASM was measured and rejected:
+  it still needs a server (browsers block `_framework` fetches from `file://`, so its one
+  advantage is illusory), it costs a 15 MB payload and a NuGet restore, and Microsoft's own
+  framework files carry `https://aka.ms/...` URLs that make a "no external URLs" test
+  unpassable. The local host needs zero packages because the ASP.NET shared framework is
+  already installed.
+- The browser holds NO engine and therefore cannot hold rules. The host sends action ids the
+  engine issued via `LegalActions`; the page posts one back. It never constructs an action
+  and never computes a path — `MoveUnit` carries the engine's own route. Keep it that way:
+  the architecture is what enforces the constraint, not discipline.
 - The viewer reads objective control from `RecordedStep.Control`, captured from
   `IGameEngine.ProjectedControl`. It must never work control out for itself — that is the
   stale-win-rule bug in a different costume, and there is a test pinning it.
@@ -214,4 +231,4 @@ Ironwake.Content — keep it that way, or a JSON problem starts failing the engi
 
 As of 2026-08-16: all five projects compile clean against .NET SDK 8.0.129, the stub match
 plays to completion on the starter pack, the seeded determinism check is byte-identical
-across runs, and 404 tests pass (319 Core, 54 Content, 31 Console).
+across runs, and 411 tests pass (319 Core, 54 Content, 31 Console, 7 Client).

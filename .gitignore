@@ -38,14 +38,17 @@ crashlytics-build.properties
 !Ironwake.Core/Ironwake.Core.csproj
 !Ironwake.Content/Ironwake.Content.csproj
 !Ironwake.Console/Ironwake.Console.csproj
+!Ironwake.Client/Ironwake.Client.csproj
 !tests/Ironwake.Core.Tests/Ironwake.Core.Tests.csproj
 !tests/Ironwake.Content.Tests/Ironwake.Content.Tests.csproj
 !tests/Ironwake.Console.Tests/Ironwake.Console.Tests.csproj
+!tests/Ironwake.Client.Tests/Ironwake.Client.Tests.csproj
 !Ironwake.sln
 
 # ---------- Generated output ----------
 # Match viewers: dotnet run --project Ironwake.Console -- --html match.html
-match.html
+# Globbed, not exact: --html takes any name, and match-7.html etc. accumulate.
+match*.html
 
 # ---------- OS ----------
 .DS_Store

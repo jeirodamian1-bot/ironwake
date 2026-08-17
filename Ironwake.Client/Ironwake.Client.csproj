@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <LangVersion>9.0</LangVersion>
+    <Nullable>disable</Nullable>
+    <RootNamespace>Ironwake.Client</RootNamespace>
+    <AssemblyName>Ironwake.Client</AssemblyName>
+  </PropertyGroup>
+
+  <!-- Deliberately ZERO package references. Microsoft.NET.Sdk.Web resolves against the
+       installed shared framework, so this builds and runs with no network at all. The
+       browser gets one hand-written page; nothing is fetched from anywhere. -->
+
+  <ItemGroup>
+    <ProjectReference Include="..\Ironwake.Core\Ironwake.Core.csproj" />
+    <ProjectReference Include="..\Ironwake.Content\Ironwake.Content.csproj" />
+  </ItemGroup>
+
+</Project>

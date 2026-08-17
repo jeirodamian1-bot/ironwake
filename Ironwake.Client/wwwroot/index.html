@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ironwake — hotseat</title>
+<style>
+:root{
+  --bg:#11141a; --panel:#181d26; --line:#2b3342; --ink:#e7eaf0; --muted:#8d97a8;
+  --p1:#4a9eff; --p2:#ff8a3d; --gold:#ffd24a; --bad:#ff5a5a; --good:#7ee0a3;
+  --t-open:#242b38; --t-cover:#2c6b48; --t-obscuring:#4a3d72;
+  --t-elevated:#6d5a30; --t-impassable:#7a3030;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);
+  font:14px/1.5 ui-sans-serif,system-ui,-apple-system,'Segoe UI',Roboto,sans-serif}
+header{padding:12px 18px;border-bottom:1px solid var(--line);background:var(--panel)}
+h1{margin:0 0 4px;font-size:15px;letter-spacing:.02em}
+.status{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.chip{background:#0e1218;border:1px solid var(--line);border-radius:999px;
+  padding:3px 10px;font-size:12px;white-space:nowrap}
+.chip b{font-weight:600}
+.p1{color:var(--p1)} .p2{color:var(--p2)}
+main{display:flex;flex-wrap:wrap;gap:16px;padding:16px;align-items:flex-start}
+.board{flex:1 1 560px;min-width:340px}
+svg{width:100%;height:auto;display:block;background:#0d1015;
+  border:1px solid var(--line);border-radius:10px}
+.hex{stroke:#0d1015;stroke-width:1.5}
+.t-Open{fill:var(--t-open)} .t-Cover{fill:var(--t-cover)}
+.t-Obscuring{fill:var(--t-obscuring)} .t-Elevated{fill:var(--t-elevated)}
+.t-Impassable{fill:var(--t-impassable)}
+.coord{fill:#5b6577;font-size:8px;text-anchor:middle;pointer-events:none}
+.radius polygon{fill:transparent;stroke:none}
+.radius.held-P1 polygon{fill:#4a9eff14;stroke:#4a9eff33;stroke-width:1}
+.radius.held-P2 polygon{fill:#ff8a3d14;stroke:#ff8a3d33;stroke-width:1}
+.radius.contested polygon{fill:#ffffff0a;stroke:#ffffff1f;stroke-width:1}
+.obj{fill:none;stroke:var(--gold);stroke-width:2.5}
+.obj.held-P1{stroke:var(--p1);stroke-width:4}
+.obj.held-P2{stroke:var(--p2);stroke-width:4}
+.objtext{fill:var(--gold);font-size:10px;font-weight:700;text-anchor:middle;pointer-events:none}
+.objhold{font-size:10px;font-weight:700;text-anchor:middle;pointer-events:none;fill:var(--muted)}
+.objhold.held-P1{fill:var(--p1)} .objhold.held-P2{fill:var(--p2)}
+.movehex{fill:#7ee0a326;stroke:var(--good);stroke-width:2;cursor:pointer}
+.movehex:hover{fill:#7ee0a355}
+.movecost{fill:var(--good);font-size:10px;font-weight:700;text-anchor:middle;pointer-events:none}
+.preview{fill:none;stroke:#fff;stroke-width:3;stroke-opacity:.65;stroke-dasharray:6 5;
+  stroke-linejoin:round;pointer-events:none}
+.unit{stroke:#0d1015;stroke-width:2}
+.unit.o-P1{fill:var(--p1)} .unit.o-P2{fill:var(--p2)}
+.unit.activated{opacity:.4}
+.unit.engaged{stroke:var(--bad);stroke-width:3.5}
+.unit.active{stroke:#fff;stroke-width:3.5}
+.unit.dead{fill:none;stroke:#556072;stroke-dasharray:3 3;opacity:.45}
+.unit.clickable{cursor:pointer}
+.unit.targetable{stroke:var(--good);stroke-width:3.5;cursor:pointer}
+.unit.blocked{opacity:.35;cursor:not-allowed}
+.ulabel{fill:#0d1015;font-size:12px;font-weight:700;text-anchor:middle;pointer-events:none}
+.ustatus{fill:var(--gold);font-size:13px;font-weight:800;text-anchor:middle;pointer-events:none}
+.legend{display:flex;flex-wrap:wrap;gap:10px;margin-top:10px;font-size:12px;color:var(--muted)}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.sw{width:12px;height:12px;border-radius:3px;border:1px solid #0d1015;display:inline-block}
+.sw.swobj{border-color:var(--gold);background:transparent;transform:rotate(45deg)}
+aside{flex:0 1 340px;min-width:280px;display:flex;flex-direction:column;gap:12px}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px}
+.panel h2{margin:0 0 8px;font-size:12px;color:var(--muted);font-weight:600;
+  text-transform:uppercase;letter-spacing:.06em}
+button{background:#222b38;color:var(--ink);border:1px solid var(--line);
+  border-radius:7px;padding:7px 14px;font:inherit;cursor:pointer}
+button:hover:not(:disabled){background:#2b3646}
+button:disabled{opacity:.35;cursor:not-allowed}
+button.primary{background:#1d3a5c;border-color:#2d5c91}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+input[type=number]{background:#0e1218;color:var(--ink);border:1px solid var(--line);
+  border-radius:7px;padding:7px 10px;font:inherit;width:120px}
+ol{margin:0;padding-left:18px;max-height:38vh;overflow:auto}
+ol li{margin-bottom:4px;font-variant-numeric:tabular-nums;font-size:13px}
+.hint{color:var(--muted);font-size:12px;margin:0}
+.warn{color:var(--gold);font-size:12px;margin:8px 0 0;border-top:1px solid var(--line);padding-top:8px}
+.over{background:#1d3a5c;border:1px solid #2d5c91;border-radius:8px;padding:10px;
+  margin-bottom:10px;font-weight:600}
+</style>
+</head>
+<body>
+<header>
+  <h1>Ironwake &mdash; hotseat</h1>
+  <div class="status">
+    <span class="chip">Round <b id="round">&mdash;</b></span>
+    <span class="chip">To act <b id="active">&mdash;</b></span>
+    <span class="chip">Score <b class="p1" id="scoreA">0</b> &ndash; <b class="p2" id="scoreB">0</b></span>
+    <span class="chip">Actions left <b id="actions">&mdash;</b></span>
+    <span class="chip" id="seedchip">seed &mdash;</span>
+  </div>
+</header>
+
+<main>
+  <section class="board">
+    <svg id="board">
+      <g id="terrain"></g>
+      <g id="radius"></g>
+      <g id="coords"></g>
+      <g id="objectives"></g>
+      <g id="moves"></g>
+      <polyline id="preview" class="preview" points=""></polyline>
+      <g id="units"></g>
+    </svg>
+    <div class="legend">
+      <span><i class="sw" style="background:var(--t-open)"></i>Open</span>
+      <span><i class="sw" style="background:var(--t-cover)"></i>Cover</span>
+      <span><i class="sw" style="background:var(--t-obscuring)"></i>Obscuring</span>
+      <span><i class="sw" style="background:var(--t-elevated)"></i>Elevated</span>
+      <span><i class="sw" style="background:var(--t-impassable)"></i>Impassable</span>
+      <span><i class="sw swobj"></i>Objective</span>
+      <span><i class="sw" style="background:var(--p1)"></i>Player 1</span>
+      <span><i class="sw" style="background:var(--p2)"></i>Player 2</span>
+      <span style="color:var(--gold);font-weight:700">! = shaken</span>
+    </div>
+  </section>
+
+  <aside>
+    <div class="panel">
+      <h2>Activation</h2>
+      <div id="over"></div>
+      <p class="hint" id="hint"></p>
+      <div class="row" style="margin-top:10px">
+        <button id="end">End activation</button>
+        <button id="pass">Pass</button>
+      </div>
+      <p class="warn">No undo. Every action goes to the engine and stands.</p>
+    </div>
+
+    <div class="panel">
+      <h2>New match</h2>
+      <div class="row">
+        <input type="number" id="seed" value="777" min="0" step="1">
+        <button id="newmatch" class="primary">Start</button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Event log</h2>
+      <ol id="log"></ol>
+    </div>
+  </aside>
+</main>
+
+<script>
+const $ = id => document.getElementById(id);
+let view = null;
+
+async function call(path, body) {
+  const options = body
+    ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }
+    : {};
+  const response = await fetch(path, options);
+  view = await response.json();
+  render();
+}
+
+// ---- board is static for a match, so it is drawn once per new match -------------
+let boardKey = null;
+
+function drawBoard() {
+  const key = view.seed + '|' + view.board.hexes.length;
+  if (key === boardKey) return;
+  boardKey = key;
+
+  $('board').setAttribute('viewBox', view.board.viewBox);
+
+  const terrain = $('terrain'), coords = $('coords');
+  terrain.innerHTML = '';
+  coords.innerHTML = '';
+  for (const h of view.board.hexes) {
+    terrain.innerHTML +=
+      '<polygon class="hex t-' + h.terrain + '" points="' + h.points + '"></polygon>';
+    coords.innerHTML +=
+      '<text class="coord" x="' + h.cx + '" y="' + (h.cy + 20) + '">' + h.q + ',' + h.r + '</text>';
+  }
+
+  const rings = $('radius'), objects = $('objectives');
+  rings.innerHTML = '';
+  objects.innerHTML = '';
+  view.objectives.forEach((o, i) => {
+    rings.innerHTML += '<g id="rad' + i + '" class="radius">' +
+      o.ring.map(p => '<polygon points="' + p + '"></polygon>').join('') + '</g>';
+    const s = 13;
+    const diamond = [[o.cx, o.cy - s], [o.cx + s, o.cy], [o.cx, o.cy + s], [o.cx - s, o.cy]]
+      .map(p => p[0] + ',' + p[1]).join(' ');
+    objects.innerHTML +=
+      '<polygon id="obj' + i + '" class="obj" points="' + diamond + '"></polygon>' +
+      '<text class="objtext" x="' + o.cx + '" y="' + (o.cy - s - 4) + '">' + o.value + 'vp</text>' +
+      '<text id="objh' + i + '" class="objhold" x="' + o.cx + '" y="' + (o.cy + 26) + '"></text>';
+  });
+}
+
+function render() {
+  drawBoard();
+
+  $('round').textContent = view.round;
+  $('active').textContent = view.activePlayer;
+  $('active').className = view.activePlayer === 'P1' ? 'p1' : 'p2';
+  $('scoreA').textContent = view.scoreA;
+  $('scoreB').textContent = view.scoreB;
+  $('actions').textContent = view.activeUnit ? view.actionsRemaining : '—';
+  $('seedchip').textContent = 'seed ' + view.seed + ' · ' + view.contentVersion;
+
+  // objectives
+  view.objectives.forEach((o, i) => {
+    const suffix = o.holder ? ' held-' + o.holder : ' contested';
+    $('rad' + i).setAttribute('class', 'radius' + suffix);
+    $('obj' + i).setAttribute('class', 'obj' + (o.holder ? ' held-' + o.holder : ''));
+    const label = $('objh' + i);
+    label.setAttribute('class', 'objhold' + suffix);
+    label.textContent = o.holder ? o.holder : 'contested';
+  });
+
+  // movement options
+  const moves = $('moves');
+  moves.innerHTML = '';
+  for (const m of view.moves) {
+    const hex = view.board.hexes.find(h => h.q === m.q && h.r === m.r);
+    if (!hex) continue;
+    moves.innerHTML +=
+      '<polygon class="movehex" data-action="' + m.actionId + '" data-path="' +
+      m.path.join(' ') + '" points="' + hex.points + '"></polygon>' +
+      '<text class="movecost" x="' + m.cx + '" y="' + (m.cy + 4) + '">' + m.cost + '</text>';
+  }
+
+  // units
+  const targets = {};
+  for (const t of view.targets) targets[t.unit] = t;
+
+  const layer = $('units');
+  layer.innerHTML = '';
+  for (const u of view.units) {
+    const dead = u.alive <= 0;
+    const target = targets[u.id];
+
+    let cls = 'unit o-' + u.owner;
+    let action = null;
+    let tip = u.id + ' · ' + u.name + ' · ' + u.owner + ' · ' + u.alive + '/' + u.total + ' models';
+
+    if (dead) {
+      cls += ' dead';
+      tip += ' · destroyed';
+    } else {
+      if (u.activated) { cls += ' activated'; tip += ' · activated'; }
+      if (u.engaged) { cls += ' engaged'; tip += ' · engaged'; }
+      if (u.shaken) tip += ' · shaken';
+      if (u.isActive) cls += ' active';
+
+      if (target) {
+        // An enemy while somebody of ours is active: offer the best action, or explain.
+        const offer = target.fightId ?? target.shootId ?? target.chargeId;
+        if (offer !== null && offer !== undefined) {
+          cls += ' targetable';
+          action = offer;
+          const verb = target.fightId != null ? 'Fight' : target.shootId != null ? 'Shoot' : 'Charge';
+          tip += ' · click to ' + verb.toLowerCase();
+        } else {
+          cls += ' blocked';
+          const why = target.shootDetail || target.chargeDetail || target.fightDetail;
+          const code = target.shootReason || target.chargeReason || target.fightReason;
+          if (why) tip += ' · ' + code + ': ' + why;
+        }
+        if (target.inCover) tip += ' · in cover';
+        if (target.losBlocked) tip += ' · no line of sight';
+      } else if (u.activateId !== null && u.activateId !== undefined) {
+        cls += ' clickable';
+        action = u.activateId;
+        tip += ' · click to activate';
+      }
+    }
+
+    layer.innerHTML +=
+      '<circle class="' + cls + '" cx="' + u.cx + '" cy="' + u.cy + '" r="' + (dead ? 8 : 14) + '"' +
+      (action !== null && action !== undefined ? ' data-action="' + action + '"' : '') +
+      '><title>' + escapeHtml(tip) + '</title></circle>' +
+      (dead ? '' :
+        '<text class="ulabel" x="' + u.cx + '" y="' + (u.cy + 4) + '">' + u.alive + '</text>' +
+        (u.shaken ? '<text class="ustatus" x="' + (u.cx + 14) + '" y="' + (u.cy - 10) + '">!</text>' : ''));
+  }
+
+  $('end').disabled = view.commands.endId === null || view.commands.endId === undefined;
+  $('pass').disabled = view.commands.passId === null || view.commands.passId === undefined;
+
+  $('over').innerHTML = view.matchOver
+    ? '<div class="over">Match over. Start a new one below.</div>' : '';
+
+  $('hint').textContent = view.matchOver
+    ? 'This match is finished.'
+    : view.activeUnit
+      ? view.activeUnit + ' is active. Green hexes are legal moves; outlined enemies can be attacked.'
+      : 'Click one of ' + view.activePlayer + "'s units to activate it.";
+
+  const log = $('log');
+  log.innerHTML = '';
+  for (const line of view.log.slice(-120)) {
+    const li = document.createElement('li');
+    li.textContent = line;
+    log.appendChild(li);
+  }
+  log.scrollTop = log.scrollHeight;
+
+  $('preview').setAttribute('points', '');
+}
+
+function escapeHtml(text) {
+  return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+// ---- input -----------------------------------------------------------------------
+// Every click resolves to an action id the ENGINE offered. The page never builds one.
+$('board').addEventListener('click', event => {
+  const id = event.target.getAttribute && event.target.getAttribute('data-action');
+  if (id === null || id === undefined) return;
+  call('/api/act', { actionId: parseInt(id, 10) });
+});
+
+$('board').addEventListener('mouseover', event => {
+  const path = event.target.getAttribute && event.target.getAttribute('data-path');
+  if (path) $('preview').setAttribute('points', path);
+});
+$('board').addEventListener('mouseout', event => {
+  if (event.target.getAttribute && event.target.getAttribute('data-path')) {
+    $('preview').setAttribute('points', '');
+  }
+});
+
+$('end').addEventListener('click', () => call('/api/act', { actionId: view.commands.endId }));
+$('pass').addEventListener('click', () => call('/api/act', { actionId: view.commands.passId }));
+$('newmatch').addEventListener('click', () => {
+  boardKey = null;
+  call('/api/new', { seed: parseInt($('seed').value, 10) || 0 });
+});
+
+document.addEventListener('keydown', ev => {
+  if (ev.key === 'e' && !$('end').disabled) $('end').click();
+  if (ev.key === 'p' && !$('pass').disabled) $('pass').click();
+});
+
+call('/api/state');
+</script>
+</body>
+</html>
