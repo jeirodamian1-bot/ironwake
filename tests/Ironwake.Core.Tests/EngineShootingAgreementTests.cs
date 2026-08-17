@@ -44,7 +44,7 @@ namespace Ironwake.Core.Tests
                 var legal = engine.LegalActions(state, state.ActivePlayer);
                 if (legal.Count == 0) break;
 
-                var outcome = engine.Execute(state, MatchPolicy.Pick(legal));
+                var outcome = engine.Execute(state, MatchPolicy.Pick(state, legal));
                 state = outcome.NextState;
                 if (outcome.IsTerminal) break;
             }

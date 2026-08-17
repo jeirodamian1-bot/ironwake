@@ -174,6 +174,19 @@ Ironwake.Content — keep it that way, or a JSON problem starts failing the engi
 - `SampleGame` is matched on POINTS (305 v 300), not unit count — three Ashguard against
   four Cinderkin. Matching unit counts gave Ashguard a 30% points advantage and made every
   balance sweep before E7 a rigged fight. Keep it points-matched.
+- `MatchPolicy` plays the WIN CONDITION, not just combat: secure an objective, then fight
+  from it, and stand still rather than wander off one. It was a pure combat AI that shot
+  whenever anything was in range and never walked anywhere — which made "Ashguard have no
+  reason to leave their deployment zone" true of the harness rather than of the game.
+  `Pick` requires a `GameState` for exactly this reason; there is deliberately no
+  stateless overload to fall back to.
+- BALANCE NUMBERS ARE DOMINATED BY POLICY QUALITY. Every policy change so far moved the win
+  rate further than any rule or content change: charge-first vs shoot-first, objective-blind
+  vs objective-aware. Treat a sweep as a measurement of engine-plus-policy, and never
+  compare two sweeps taken with different policies.
+- The viewer reads objective control from `RecordedStep.Control`, captured from
+  `IGameEngine.ProjectedControl`. It must never work control out for itself — that is the
+  stale-win-rule bug in a different costume, and there is a test pinning it.
 - The sweep takes its verdict from the engine's `MatchEndedEvent`, never from its own
   arithmetic. It once re-derived the winner itself, and the copy went stale the moment the
   win ordering changed — the sweep reported the old rule while the engine used the new one,
@@ -201,4 +214,4 @@ Ironwake.Content — keep it that way, or a JSON problem starts failing the engi
 
 As of 2026-08-16: all five projects compile clean against .NET SDK 8.0.129, the stub match
 plays to completion on the starter pack, the seeded determinism check is byte-identical
-across runs, and 403 tests pass (319 Core, 54 Content, 30 Console).
+across runs, and 404 tests pass (319 Core, 54 Content, 31 Console).

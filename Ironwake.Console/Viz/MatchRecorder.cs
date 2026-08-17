@@ -19,16 +19,28 @@ namespace Ironwake.ConsoleHarness.Viz
     /// </summary>
     public static class MatchPolicy
     {
-        public static GameAction Pick(IReadOnlyList<GameAction> legal)
+        /// <summary>
+        /// With a state in hand the policy can play the actual win condition: secure an
+        /// objective first, then fight from it.
+        ///
+        /// Without this the policy was a pure combat AI, blind to objectives — it shot
+        /// whenever anything was in range and never walked anywhere. That made "Ashguard
+        /// have no reason to leave their deployment zone" true of the HARNESS rather than of
+        /// the game, and no amount of board or content tuning could have been measured
+        /// through it.
+        /// </summary>
+        public static GameAction Pick(GameState state, IReadOnlyList<GameAction> legal)
         {
             // Already in melee: swing, it costs one action and needs no approach.
             var fight = legal.FirstOrDefault(a => a is FightUnit);
             if (fight != null) return fight;
 
+            var seize = MoveTowardObjective(state, legal);
+            if (seize != null) return seize;
+
             // Shoot before charging. A unit with no melee weapon may legally charge, but the
             // free fight does nothing, so charging with one spends the whole activation to
-            // deal zero damage. Preferring the charge made the sweep measure that blunder
-            // rather than the game.
+            // deal zero damage.
             var shoot = legal.FirstOrDefault(a => a is ShootAt);
             if (shoot != null) return shoot;
 
@@ -38,10 +50,69 @@ namespace Ironwake.ConsoleHarness.Viz
             var activate = legal.FirstOrDefault(a => a is ActivateUnit);
             if (activate != null) return activate;
 
+            // Holding ground with nothing to shoot: stand still. The longest-move fallback
+            // below would otherwise walk the unit straight off the objective it is scoring.
+            if (IsHoldingAnObjective(state))
+            {
+                var stand = legal.FirstOrDefault(a => a is EndActivation);
+                if (stand != null) return stand;
+            }
+
             var move = legal.OfType<MoveUnit>().OrderByDescending(m => m.Path.Count).FirstOrDefault();
             if (move != null) return move;
 
             return legal[legal.Count - 1];
+        }
+
+
+        /// <summary>True if the active unit stands within control range of any objective.</summary>
+        private static bool IsHoldingAnObjective(GameState state)
+        {
+            if (state == null || state.ActiveUnit.IsNone) return false;
+
+            var mover = state.GetUnit(state.ActiveUnit);
+            if (mover == null) return false;
+
+            foreach (var objective in state.Objectives)
+                if (objective.Position.DistanceTo(mover.Position) <= Scoring.ControlRadiusHexes)
+                    return true;
+            return false;
+        }
+        /// <summary>
+        /// The move that gets the active unit closest to the nearest objective it is not
+        /// already holding, or null if it is in range of one or cannot improve.
+        /// Fully deterministic: nearest objective by distance then id, then the move that
+        /// closes the most ground, ties broken by destination hex.
+        /// </summary>
+        private static GameAction MoveTowardObjective(GameState state, IReadOnlyList<GameAction> legal)
+        {
+            if (state == null || state.ActiveUnit.IsNone) return null;
+
+            var mover = state.GetUnit(state.ActiveUnit);
+            if (mover == null || state.Objectives.Count == 0) return null;
+
+            // Standing on an objective already: hold it and fight from here.
+            if (IsHoldingAnObjective(state)) return null;
+
+            var moves = legal.OfType<MoveUnit>().ToList();
+            if (moves.Count == 0) return null;
+
+            var target = state.Objectives
+                .OrderBy(o => o.Position.DistanceTo(mover.Position))
+                .ThenBy(o => o.Id.Value)
+                .First();
+
+            int here = target.Position.DistanceTo(mover.Position);
+
+            return moves
+                .Select(m => new { Move = m, To = m.Path[m.Path.Count - 1] })
+                .Select(x => new { x.Move, x.To, Distance = target.Position.DistanceTo(x.To) })
+                .Where(x => x.Distance < here)
+                .OrderBy(x => x.Distance)
+                .ThenByDescending(x => x.Move.Path.Count)
+                .ThenBy(x => x.To.Q).ThenBy(x => x.To.R)
+                .Select(x => (GameAction)x.Move)
+                .FirstOrDefault();
         }
     }
 
@@ -88,8 +159,16 @@ namespace Ironwake.ConsoleHarness.Viz
         /// <summary>Set only when the action was a shot.</summary>
         public ShotTrace Shot { get; }
 
+        /// <summary>
+        /// Who held each objective after this action, AS THE ENGINE REPORTS IT. Captured
+        /// rather than recomputed downstream: a consumer working control out for itself is
+        /// the win rule bug again in a different costume.
+        /// </summary>
+        public IReadOnlyDictionary<ObjectiveId, PlayerId?> Control { get; }
+
         public RecordedStep(int index, GameAction action, IReadOnlyList<GameEvent> events,
-                            int roundBefore, GameState stateAfter, ShotTrace shot = null)
+                            int roundBefore, GameState stateAfter, ShotTrace shot = null,
+                            IReadOnlyDictionary<ObjectiveId, PlayerId?> control = null)
         {
             Index = index;
             Action = action;
@@ -97,6 +176,7 @@ namespace Ironwake.ConsoleHarness.Viz
             RoundBefore = roundBefore;
             StateAfter = stateAfter;
             Shot = shot;
+            Control = control ?? new Dictionary<ObjectiveId, PlayerId?>();
         }
     }
 
@@ -109,19 +189,24 @@ namespace Ironwake.ConsoleHarness.Viz
         /// <summary>Before any action was taken.</summary>
         public GameState InitialState { get; }
 
+        /// <summary>Objective control at the start, as the engine reports it.</summary>
+        public IReadOnlyDictionary<ObjectiveId, PlayerId?> InitialControl { get; }
+
         public IReadOnlyList<RecordedStep> Steps { get; }
 
         /// <summary>True if the match reached a conclusion rather than hitting the step guard.</summary>
         public bool Completed { get; }
 
         public MatchRecording(ulong seed, string contentVersion, GameState initialState,
-                              IReadOnlyList<RecordedStep> steps, bool completed)
+                              IReadOnlyList<RecordedStep> steps, bool completed,
+                              IReadOnlyDictionary<ObjectiveId, PlayerId?> initialControl = null)
         {
             Seed = seed;
             ContentVersion = contentVersion;
             InitialState = initialState;
             Steps = steps ?? Array.Empty<RecordedStep>();
             Completed = completed;
+            InitialControl = initialControl ?? new Dictionary<ObjectiveId, PlayerId?>();
         }
 
         /// <summary>Final state — after the last step, or the initial state if nothing happened.</summary>
@@ -148,18 +233,23 @@ namespace Ironwake.ConsoleHarness.Viz
             if (engine == null) throw new ArgumentNullException(nameof(engine));
             if (initial == null) throw new ArgumentNullException(nameof(initial));
 
-            pick ??= MatchPolicy.Pick;
+
 
             var steps = new List<RecordedStep>();
             var state = initial;
             bool completed = false;
+
+            // Captures the loop variable, so the default policy always sees the current state.
+            Func<IReadOnlyList<GameAction>, GameAction> defaultPick =
+                actions => MatchPolicy.Pick(state, actions);
+            var choose = pick ?? defaultPick;
 
             while (state.Phase != PhaseKind.Complete && steps.Count < maxSteps)
             {
                 var legal = engine.LegalActions(state, state.ActivePlayer);
                 if (legal.Count == 0) break;
 
-                var choice = pick(legal);
+                var choice = choose(legal);
 
                 // The recorder trusts the engine no more than a client would.
                 var check = engine.Validate(state, choice);
@@ -176,7 +266,8 @@ namespace Ironwake.ConsoleHarness.Viz
                 var result = engine.Execute(state, choice);
 
                 steps.Add(new RecordedStep(
-                    steps.Count, choice, result.Events, roundBefore, result.NextState, shot));
+                    steps.Count, choice, result.Events, roundBefore, result.NextState, shot,
+                    engine.ProjectedControl(result.NextState)));
 
                 state = result.NextState;
                 if (result.IsTerminal) { completed = true; break; }
@@ -184,7 +275,8 @@ namespace Ironwake.ConsoleHarness.Viz
 
             if (state.Phase == PhaseKind.Complete) completed = true;
 
-            return new MatchRecording(seed, initial.ContentVersion, initial, steps, completed);
+            return new MatchRecording(seed, initial.ContentVersion, initial, steps, completed,
+                                      engine.ProjectedControl(initial));
         }
 
         /// <summary>Ask the engine about the sight line, for shots only.</summary>

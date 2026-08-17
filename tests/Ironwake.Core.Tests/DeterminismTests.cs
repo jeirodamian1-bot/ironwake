@@ -28,7 +28,7 @@ namespace Ironwake.Core.Tests
                 var legal = engine.LegalActions(state, state.ActivePlayer);
                 if (legal.Count == 0) break;
 
-                var result = engine.Execute(state, MatchPolicy.Pick(legal));
+                var result = engine.Execute(state, MatchPolicy.Pick(state, legal));
                 foreach (var e in result.Events)
                     log.Append("[R").Append(state.Round).Append("] ").AppendLine(e.Describe());
 

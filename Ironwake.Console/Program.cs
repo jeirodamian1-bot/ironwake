@@ -69,7 +69,7 @@ namespace Ironwake.ConsoleHarness
                 var legal = engine.LegalActions(state, state.ActivePlayer);
                 if (legal.Count == 0) break;
 
-                var choice = MatchPolicy.Pick(legal);
+                var choice = MatchPolicy.Pick(state, legal);
                 var check = engine.Validate(state, choice);
                 if (!check.IsLegal)
                 {

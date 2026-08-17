@@ -90,7 +90,7 @@ namespace Ironwake.ConsoleHarness.Viz
                     var legal = engine.LegalActions(state, state.ActivePlayer);
                     if (legal.Count == 0) break;
 
-                    var outcome = engine.Execute(state, MatchPolicy.Pick(legal));
+                    var outcome = engine.Execute(state, MatchPolicy.Pick(state, legal));
                     steps++;
 
                     // The ENGINE decides who won. Re-deriving it here would be the win rule

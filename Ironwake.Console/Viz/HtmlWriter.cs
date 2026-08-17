@@ -278,11 +278,11 @@ namespace Ironwake.ConsoleHarness.Viz
 
             var frames = new List<Frame>
             {
-                FrameOf(recording.InitialState, null, null, "Starting position.")
+                FrameOf(recording.InitialState, null, null, "Starting position.", recording.InitialControl)
             };
 
             foreach (var step in recording.Steps)
-                frames.Add(FrameOf(step.StateAfter, step, step.Events, null));
+                frames.Add(FrameOf(step.StateAfter, step, step.Events, null, step.Control));
 
             return new Payload
             {
@@ -295,7 +295,8 @@ namespace Ironwake.ConsoleHarness.Viz
         }
 
         private static Frame FrameOf(
-            GameState state, RecordedStep step, IReadOnlyList<GameEvent> events, string fallbackAction)
+            GameState state, RecordedStep step, IReadOnlyList<GameEvent> events, string fallbackAction,
+            IReadOnlyDictionary<ObjectiveId, PlayerId?> control)
         {
             var units = state.Units
                 .OrderBy(u => u.Id.Value)
@@ -347,15 +348,13 @@ namespace Ironwake.ConsoleHarness.Viz
                     ? "charge" : "move",
                 Shot = ShotViewOf(step?.Shot),
 
-                // Live control, which is what the engine's ProjectedControl reports. It can
-                // differ from ObjectiveState.ControlledBy, since that only updates at round end.
+                // Read from what the ENGINE reported, never worked out here. It can differ
+                // from ObjectiveState.ControlledBy, which only updates at round end.
                 Control = state.Objectives
                     .OrderBy(o => o.Id.Value)
-                    .Select(o =>
-                    {
-                        var holder = Scoring.ControllerOf(state, o);
-                        return holder.HasValue ? holder.Value.ToString() : null;
-                    })
+                    .Select(o => control != null && control.TryGetValue(o.Id, out var holder) && holder.HasValue
+                        ? holder.Value.ToString()
+                        : null)
                     .ToList(),
             };
         }

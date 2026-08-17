@@ -399,7 +399,7 @@ namespace Ironwake.Console.Tests
                     var legal = engine.LegalActions(state, state.ActivePlayer);
                     if (legal.Count == 0) break;
 
-                    var outcome = engine.Execute(state, MatchPolicy.Pick(legal));
+                    var outcome = engine.Execute(state, MatchPolicy.Pick(state, legal));
                     foreach (var ended in outcome.Events.OfType<MatchEndedEvent>())
                     {
                         winner = ended.Winner;
@@ -415,6 +415,33 @@ namespace Ironwake.Console.Tests
 
             Assert.Equal(wins, sweep.WinsA);
             Assert.Equal(40, sweep.WinsA + sweep.WinsB + sweep.Draws + sweep.Unfinished);
+        }
+
+        [Fact]
+        public void TheViewerTakesObjectiveControlFromTheEngineNotItsOwnArithmetic()
+        {
+            // Same failure mode as the sweep's stale win rule: a consumer working an outcome
+            // out for itself drifts silently the moment the rule changes. The recorder asks
+            // the engine and the writer renders the answer.
+            var content = StarterPack.Load();
+            IGameEngine engine = new RulesEngine(content);
+            var (recording, _) = Play(777UL);
+
+            Assert.Equal(engine.ProjectedControl(recording.InitialState).Count,
+                         recording.InitialControl.Count);
+            Assert.NotEmpty(recording.InitialControl);
+
+            foreach (var step in recording.Steps)
+            {
+                var truth = engine.ProjectedControl(step.StateAfter);
+
+                Assert.Equal(truth.Count, step.Control.Count);
+                foreach (var pair in truth)
+                    Assert.Equal(pair.Value, step.Control[pair.Key]);
+            }
+
+            // And somebody held something, or this proves nothing.
+            Assert.Contains(recording.Steps, s => s.Control.Values.Any(v => v.HasValue));
         }
 
         [Fact]
