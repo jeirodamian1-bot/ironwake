@@ -37,7 +37,7 @@ namespace Ironwake.Content.Tests
         public void AshrunnerReachesStrictlyMoreHexesThanBulwarkFromTheSamePosition()
         {
             var pack = StarterPack.Load();
-            IGameEngine engine = new StubEngine(pack);
+            IGameEngine engine = new RulesEngine(pack);
             var spot = Hex.Zero;
 
             var ashrunner = engine.ReachableHexes(SoloOnOpenGround("cinderkin_ashrunner", spot), new UnitId(1));
@@ -61,7 +61,7 @@ namespace Ironwake.Content.Tests
         {
             // A unit authored with move 0 would load fine and then be unable to do anything.
             var pack = StarterPack.Load();
-            IGameEngine engine = new StubEngine(pack);
+            IGameEngine engine = new RulesEngine(pack);
 
             foreach (var definition in pack.AllUnits)
             {
@@ -79,7 +79,7 @@ namespace Ironwake.Content.Tests
             // Same invariant the Core suite asserts against a hand-built pack, re-checked
             // against the authored statlines.
             var pack = StarterPack.Load();
-            var engine = new StubEngine(pack);
+            var engine = new RulesEngine(pack);
 
             foreach (var definition in pack.AllUnits)
             {

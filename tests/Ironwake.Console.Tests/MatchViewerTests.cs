@@ -34,7 +34,7 @@ namespace Ironwake.Console.Tests
         private static (MatchRecording Recording, IContentPack Content) Play(ulong seed)
         {
             var content = StarterPack.Load();
-            IGameEngine engine = new StubEngine(content);
+            IGameEngine engine = new RulesEngine(content);
             var state = SampleGame.Create(content, seed);
             return (MatchRecorder.Record(engine, state, seed), content);
         }
@@ -243,7 +243,7 @@ namespace Ironwake.Console.Tests
                 objectives: new List<ObjectiveState>(),
                 scoreA: 0, scoreB: 0, rng: new RngState(4242UL), contentVersion: content.Version);
 
-            IGameEngine engine = new StubEngine(content);
+            IGameEngine engine = new RulesEngine(content);
             var shot = new ShootAt(PlayerId.A, new UnitId(1), new UnitId(2), "ash_carbine");
             Assert.True(engine.Validate(state, shot).IsLegal);
 
@@ -423,7 +423,7 @@ namespace Ironwake.Console.Tests
         private static (IGameEngine Engine, GameState State, IContentPack Content) Fresh(ulong seed)
         {
             var content = StarterPack.Load();
-            return (new StubEngine(content), SampleGame.Create(content, seed), content);
+            return (new RulesEngine(content), SampleGame.Create(content, seed), content);
         }
 
         [Fact]

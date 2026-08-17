@@ -203,7 +203,12 @@ namespace Ironwake.Content.Tests
 
             var state = SampleGame.Create(pack);
 
-            Assert.Equal(6, state.Units.Count);
+            // Three Ashguard against four Cinderkin — the scenario is matched on POINTS
+            // (305 v 300), not on unit count. Matching unit counts was what made every
+            // earlier balance sweep a rigged fight.
+            Assert.Equal(7, state.Units.Count);
+            Assert.Equal(3, state.UnitsOf(PlayerId.A).Count());
+            Assert.Equal(4, state.UnitsOf(PlayerId.B).Count());
             Assert.Equal(pack.Version, state.ContentVersion);
             Assert.All(state.Units, u => Assert.True(u.IsAlive));
         }
@@ -214,7 +219,7 @@ namespace Ironwake.Content.Tests
             // The Core suite proves this against a hand-built pack; this proves the authored
             // numbers are playable too — e.g. that nothing has a zero-hex move.
             var pack = Pack();
-            IGameEngine engine = new StubEngine(pack);
+            IGameEngine engine = new RulesEngine(pack);
             var state = SampleGame.Create(pack, 777UL);
 
             int guard = 0;

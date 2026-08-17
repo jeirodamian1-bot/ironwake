@@ -103,7 +103,7 @@ namespace Ironwake.Core
         /// <summary>
         /// The unit's melee weapon: the first it carries with no range. Null if it has none,
         /// which means it cannot Fight — though it may still charge, see the ruling on
-        /// <see cref="StubEngine"/>'s charge handling.
+        /// <see cref="RulesEngine"/>'s charge handling.
         /// </summary>
         public static WeaponDefinition MeleeWeaponOf(IContentPack content, UnitState unit)
         {

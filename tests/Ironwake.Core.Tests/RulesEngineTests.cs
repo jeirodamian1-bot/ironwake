@@ -9,10 +9,10 @@ namespace Ironwake.Core.Tests
     /// These assert the refusal *codes*, not merely that something was refused — the client
     /// branches on ReasonCode, so a rule failing for the wrong reason is still a bug.
     ///
-    /// StubEngine is temporary and its numbers are placeholders, but the refusal contract
+    /// RulesEngine is temporary and its numbers are placeholders, but the refusal contract
     /// it establishes is what the real RulesEngine has to honour.
     /// </summary>
-    public class StubEngineTests
+    public class RulesEngineTests
     {
         /// <summary>
         /// Statlines now come from content, so the tests supply their own pack rather than
@@ -81,7 +81,7 @@ namespace Ironwake.Core.Tests
         [Fact]
         public void AUnitCannotMoveFurtherThanItsAllowance()
         {
-            var engine = new StubEngine(Content);
+            var engine = new RulesEngine(Content);
             var state = Activate(engine, Fixture(), A1);
 
             var start = new Hex(0, 0);
@@ -98,7 +98,7 @@ namespace Ironwake.Core.Tests
         public void AUnitMayMoveExactlyItsAllowance()
         {
             // Pins the boundary: without this, an off-by-one that refuses legal moves passes.
-            var engine = new StubEngine(Content);
+            var engine = new RulesEngine(Content);
             var state = Activate(engine, Fixture(), A1);
 
             var start = new Hex(0, 0);
@@ -113,7 +113,7 @@ namespace Ironwake.Core.Tests
         [Fact]
         public void AMoveOffTheBoardIsRefused()
         {
-            var engine = new StubEngine(Content);
+            var engine = new RulesEngine(Content);
             var state = Activate(engine, Fixture(), A1);
 
             // Nothing within the 4-hex allowance of (0,0) is off a radius-5 board, so walk
@@ -133,7 +133,7 @@ namespace Ironwake.Core.Tests
         [Fact]
         public void AMoveOntoAnotherUnitIsRefused()
         {
-            var engine = new StubEngine(Content);
+            var engine = new RulesEngine(Content);
             var state = Activate(engine, Fixture(), A1);
 
             var result = engine.Validate(
@@ -146,7 +146,7 @@ namespace Ironwake.Core.Tests
         [Fact]
         public void ANonContiguousPathIsRefused()
         {
-            var engine = new StubEngine(Content);
+            var engine = new RulesEngine(Content);
             var state = Activate(engine, Fixture(), A1);
 
             var jump = new List<Hex> { new Hex(0, 0), new Hex(0, 2) };
@@ -161,7 +161,7 @@ namespace Ironwake.Core.Tests
         [Fact]
         public void AUnitCannotShootAFriendlyUnit()
         {
-            var engine = new StubEngine(Content);
+            var engine = new RulesEngine(Content);
             var state = Activate(engine, Fixture(), A1);
 
             var result = engine.Validate(state, new ShootAt(PlayerId.A, A1, A2, "stub_weapon"));
@@ -173,7 +173,7 @@ namespace Ironwake.Core.Tests
         [Fact]
         public void AUnitCannotShootItself()
         {
-            var engine = new StubEngine(Content);
+            var engine = new RulesEngine(Content);
             var state = Activate(engine, Fixture(), A1);
 
             var result = engine.Validate(state, new ShootAt(PlayerId.A, A1, A1, "stub_weapon"));
@@ -187,7 +187,7 @@ namespace Ironwake.Core.Tests
         {
             // Control for the two above: the refusal must be about friendliness, not about
             // shooting being broken generally.
-            var engine = new StubEngine(Content);
+            var engine = new RulesEngine(Content);
             var state = Activate(engine, Fixture(), A1);
 
             var result = engine.Validate(state, new ShootAt(PlayerId.A, A1, B1, "stub_weapon"));
@@ -200,7 +200,7 @@ namespace Ironwake.Core.Tests
         [Fact]
         public void APlayerCannotActivateOutOfTurn()
         {
-            var engine = new StubEngine(Content);
+            var engine = new RulesEngine(Content);
             var state = Fixture();               // A is the active player
             Assert.Equal(PlayerId.A, state.ActivePlayer);
 
@@ -213,7 +213,7 @@ namespace Ironwake.Core.Tests
         [Fact]
         public void APlayerCannotMoveOutOfTurn()
         {
-            var engine = new StubEngine(Content);
+            var engine = new RulesEngine(Content);
             var state = Activate(engine, Fixture(), A1);   // still A's turn, A1 active
 
             var result = engine.Validate(
@@ -226,7 +226,7 @@ namespace Ironwake.Core.Tests
         [Fact]
         public void APlayerCannotShootOutOfTurn()
         {
-            var engine = new StubEngine(Content);
+            var engine = new RulesEngine(Content);
             var state = Activate(engine, Fixture(), A1);
 
             var result = engine.Validate(state, new ShootAt(PlayerId.B, B1, A1, "stub_weapon"));
@@ -238,7 +238,7 @@ namespace Ironwake.Core.Tests
         [Fact]
         public void TurnPassesToTheOpponentAfterActivationEnds_AndTheFormerPlayerIsLockedOut()
         {
-            var engine = new StubEngine(Content);
+            var engine = new RulesEngine(Content);
             var state = Activate(engine, Fixture(), A1);
 
             state = engine.Execute(state, new EndActivation(PlayerId.A, A1)).NextState;
@@ -255,7 +255,7 @@ namespace Ironwake.Core.Tests
         {
             // Distinguishes the two codes: it IS A's turn, so the refusal must name the
             // ownership problem rather than the turn.
-            var engine = new StubEngine(Content);
+            var engine = new RulesEngine(Content);
             var result = engine.Validate(Fixture(), new ActivateUnit(PlayerId.A, B1));
 
             Assert.False(result.IsLegal);
@@ -267,7 +267,7 @@ namespace Ironwake.Core.Tests
         [Fact]
         public void NothingIsLegalOnceTheMatchIsComplete()
         {
-            var engine = new StubEngine(Content);
+            var engine = new RulesEngine(Content);
             var state = Fixture().With(phase: PhaseKind.Complete);
 
             var result = engine.Validate(state, new ActivateUnit(PlayerId.A, A1));
@@ -279,7 +279,7 @@ namespace Ironwake.Core.Tests
         [Fact]
         public void ALegalResultCarriesNoReasonCode()
         {
-            var engine = new StubEngine(Content);
+            var engine = new RulesEngine(Content);
             var result = engine.Validate(Fixture(), new ActivateUnit(PlayerId.A, A1));
 
             Assert.True(result.IsLegal);
@@ -290,7 +290,7 @@ namespace Ironwake.Core.Tests
         public void ExecuteDoesNotMutateTheStateItWasGiven()
         {
             // GameState is immutable: mutations return new instances.
-            var engine = new StubEngine(Content);
+            var engine = new RulesEngine(Content);
             var before = Fixture();
             var positionBefore = before.GetUnit(A1).Position;
 
@@ -307,7 +307,7 @@ namespace Ironwake.Core.Tests
         {
             // The client highlights whatever LegalActions returns; an entry that then fails
             // Validate would present the player with a button that does nothing.
-            var engine = new StubEngine(Content);
+            var engine = new RulesEngine(Content);
             var state = Activate(engine, Fixture(), A1);
 
             var offered = engine.LegalActions(state, PlayerId.A);
@@ -321,7 +321,7 @@ namespace Ironwake.Core.Tests
         [Fact]
         public void LegalActionsIsEmptyForThePlayerNotToAct()
         {
-            var engine = new StubEngine(Content);
+            var engine = new RulesEngine(Content);
             Assert.Empty(engine.LegalActions(Fixture(), PlayerId.B));
         }
     }

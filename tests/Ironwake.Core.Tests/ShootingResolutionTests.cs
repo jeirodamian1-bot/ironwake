@@ -71,7 +71,7 @@ namespace Ironwake.Core.Tests
 
         private static IReadOnlyList<GameEvent> Fire(IContentPack pack, GameState state)
         {
-            var engine = new StubEngine(pack);
+            var engine = new RulesEngine(pack);
             var action = new ShootAt(PlayerId.A, new UnitId(1), new UnitId(2), "gun");
             Assert.True(engine.Validate(state, action).IsLegal);
             return engine.Execute(state, action).Events;
@@ -219,7 +219,7 @@ namespace Ironwake.Core.Tests
         [Fact]
         public void ARangeZeroWeaponCannotBeFired()
         {
-            var engine = new StubEngine(Pack());
+            var engine = new RulesEngine(Pack());
             var state = Field(shooterDef: "brawler");
 
             var result = engine.Validate(state, new ShootAt(PlayerId.A, new UnitId(1), new UnitId(2), "maul"));
@@ -232,7 +232,7 @@ namespace Ironwake.Core.Tests
         [Fact]
         public void AUnitCarryingNothingCannotShoot()
         {
-            var engine = new StubEngine(Pack());
+            var engine = new RulesEngine(Pack());
             var state = Field(shooterDef: "unarmed");
 
             var result = engine.Validate(state, new ShootAt(PlayerId.A, new UnitId(1), new UnitId(2), "none"));
@@ -244,7 +244,7 @@ namespace Ironwake.Core.Tests
         [Fact]
         public void AMeleeUnitIsNeverOfferedAShot()
         {
-            var engine = new StubEngine(Pack());
+            var engine = new RulesEngine(Pack());
             var state = Field(shooterDef: "brawler");
 
             Assert.Empty(engine.LegalActions(state, PlayerId.A).OfType<ShootAt>());
@@ -253,7 +253,7 @@ namespace Ironwake.Core.Tests
         [Fact]
         public void RangeComesFromContentNotAConstant()
         {
-            var engine = new StubEngine(Pack(range: 20));   // 2 hexes
+            var engine = new RulesEngine(Pack(range: 20));   // 2 hexes
             var state = Field();                            // target is 3 hexes away
 
             var result = engine.Validate(state, new ShootAt(PlayerId.A, new UnitId(1), new UnitId(2), "gun"));
@@ -262,7 +262,7 @@ namespace Ironwake.Core.Tests
             Assert.Equal(ReasonCodes.OutOfRange, result.ReasonCode);
 
             // Same board, longer weapon.
-            Assert.True(new StubEngine(Pack(range: 40))
+            Assert.True(new RulesEngine(Pack(range: 40))
                 .Validate(state, new ShootAt(PlayerId.A, new UnitId(1), new UnitId(2), "gun")).IsLegal);
         }
     }

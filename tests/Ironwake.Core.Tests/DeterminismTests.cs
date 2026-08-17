@@ -18,7 +18,7 @@ namespace Ironwake.Core.Tests
         private static string PlayMatch(ulong seed)
         {
             var content = TestContent.ForSampleGame();
-            IGameEngine engine = new StubEngine(content);
+            IGameEngine engine = new RulesEngine(content);
             var state = SampleGame.Create(content, seed);
             var log = new StringBuilder();
 
@@ -86,7 +86,7 @@ namespace Ironwake.Core.Tests
             // Execute must be a pure function of (state, action) — no hidden RNG,
             // no clock, no ambient state carried between calls.
             var content = TestContent.ForSampleGame();
-            IGameEngine engine = new StubEngine(content);
+            IGameEngine engine = new RulesEngine(content);
             var state = SampleGame.Create(content, 999UL);
             var unit = state.UnitsOf(PlayerId.A).First().Id;
 

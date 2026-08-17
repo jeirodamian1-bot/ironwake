@@ -65,7 +65,7 @@ namespace Ironwake.Core.Tests
 
         private static LiveRun PlayLive(ulong seed)
         {
-            var engine = new StubEngine(Content);
+            var engine = new RulesEngine(Content);
             var state = SampleGame.Create(Content, seed);
             var run = new LiveRun();
 
@@ -92,7 +92,7 @@ namespace Ironwake.Core.Tests
         /// <summary>Re-executes a recorded log against a fresh state built from the same seed.</summary>
         private static (GameState Final, List<string> Events) Replay(ulong seed, List<GameAction> log)
         {
-            var engine = new StubEngine(Content);
+            var engine = new RulesEngine(Content);
             var state = SampleGame.Create(Content, seed);
             var events = new List<string>();
 
@@ -149,7 +149,7 @@ namespace Ironwake.Core.Tests
             var live = PlayLive(777UL);
 
             int rollsInEvents = 0;
-            var engine = new StubEngine(Content);
+            var engine = new RulesEngine(Content);
             var state = SampleGame.Create(Content, 777UL);
 
             foreach (var action in live.Log)

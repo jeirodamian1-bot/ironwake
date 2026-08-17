@@ -41,6 +41,7 @@ namespace Ironwake.Core
                 MakeUnit(content, 4, PlayerId.B, "cinderkin_raider",    new Hex( 4, -1)),
                 MakeUnit(content, 5, PlayerId.B, "cinderkin_raider",    new Hex( 4, -2)),
                 MakeUnit(content, 6, PlayerId.B, "cinderkin_brute",     new Hex( 3, -1)),
+                MakeUnit(content, 7, PlayerId.B, "cinderkin_raider",    new Hex( 4,  0)),
             };
 
             var objectives = new List<ObjectiveState>

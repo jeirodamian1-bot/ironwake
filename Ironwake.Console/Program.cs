@@ -14,6 +14,7 @@ namespace Ironwake.ConsoleHarness
     ///   dotnet run --project Ironwake.Console 777                  ... with a given seed
     ///   dotnet run --project Ironwake.Console -- --html match.html write a match viewer
     ///   dotnet run --project Ironwake.Console -- --html m.html --seed 777
+    ///   dotnet run --project Ironwake.Console -- --sweep 200      balance statistics
     ///
     /// Plays a full match and prints the combat log. Run it twice with the same seed and the
     /// output must be byte-identical — that is the determinism check.
@@ -33,7 +34,7 @@ namespace Ironwake.ConsoleHarness
             {
                 Console.Error.WriteLine(ex.Message);
                 Console.Error.WriteLine(
-                    "usage: Ironwake.Console [seed] [--html <path>] [--seed <number>]");
+                    "usage: Ironwake.Console [seed] [--html <path>] [--seed <number>] [--sweep <count>]");
                 return 1;
             }
 
@@ -41,8 +42,15 @@ namespace Ironwake.ConsoleHarness
             // comes from JSON on disk. Core never learns that.
             var content = StarterPack.Load();
 
-            IGameEngine engine = new StubEngine(content);
+            IGameEngine engine = new RulesEngine(content);
             var state = SampleGame.Create(content, options.Seed);
+
+            if (options.SweepMatches > 0)
+            {
+                var sweep = Sweep.Run(content, options.SweepMatches, options.Seed);
+                Console.Write(Sweep.Report(sweep, content, options.Seed));
+                return 0;
+            }
 
             if (options.HtmlPath != null)
                 return WriteViewer(engine, content, state, options);
@@ -108,6 +116,9 @@ namespace Ironwake.ConsoleHarness
             public ulong Seed = DefaultSeed;
             public string HtmlPath;
 
+            /// <summary>Matches to play for statistics. Zero means "not a sweep".</summary>
+            public int SweepMatches;
+
             /// <summary>
             /// Accepts the original bare positional seed as well as the flags, so the
             /// documented determinism check keeps working untouched.
@@ -122,6 +133,12 @@ namespace Ironwake.ConsoleHarness
                     {
                         case "--html":
                             options.HtmlPath = Next(args, ref i, "--html needs a file path.");
+                            break;
+
+                        case "--sweep":
+                            var count = Next(args, ref i, "--sweep needs a match count.");
+                            if (!int.TryParse(count, out options.SweepMatches) || options.SweepMatches < 1)
+                                throw new ArgumentException($"'{count}' is not a valid match count.");
                             break;
 
                         case "--seed":

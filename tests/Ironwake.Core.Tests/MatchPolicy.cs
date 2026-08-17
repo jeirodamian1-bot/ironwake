@@ -21,11 +21,15 @@ namespace Ironwake.Core.Tests
             var fight = legal.FirstOrDefault(a => a is FightUnit);
             if (fight != null) return fight;
 
-            var charge = legal.FirstOrDefault(a => a is ChargeAt);
-            if (charge != null) return charge;
-
+            // Shoot before charging. A unit with no melee weapon may legally charge, but the
+            // free fight does nothing, so charging with one spends the whole activation to
+            // deal zero damage. Preferring the charge made the sweep measure that blunder
+            // rather than the game.
             var shoot = legal.FirstOrDefault(a => a is ShootAt);
             if (shoot != null) return shoot;
+
+            var charge = legal.FirstOrDefault(a => a is ChargeAt);
+            if (charge != null) return charge;
 
             var activate = legal.FirstOrDefault(a => a is ActivateUnit);
             if (activate != null) return activate;

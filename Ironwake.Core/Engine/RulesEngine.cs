@@ -5,32 +5,38 @@ using System.Linq;
 namespace Ironwake.Core
 {
     /// <summary>
-    /// TEMPORARY. Exists so the client can build the full
-    /// tap → GameAction → Execute → animate GameEvents loop before the real rules land.
+    /// The rules engine: the authority on what is legal and what happens.
     ///
-    /// It is deliberately simplified:
-    ///   - flat statline for every unit (no content pack yet)
-    ///   - no line of sight, no cover, no charge/melee, no morale
-    ///   - objectives never score
+    /// Pure throughout. <see cref="Validate"/> is side-effect free and cheap enough to call
+    /// on every mouse move; <see cref="Execute"/> takes a state and an action and returns a
+    /// new state plus the events that explain it. Nothing is mutated, no clock is read, and
+    /// every die comes from the seeded <see cref="Rng"/> carried in the state — which is what
+    /// lets the same assembly run in a client and on an authoritative server and agree.
     ///
-    /// What it DOES do correctly is the shape: pure functions, seeded dice, events
-    /// emitted for everything. When the real engine replaces this, the client should
-    /// not need to change.
-    ///
-    /// DELETE THIS FILE once RulesEngine is complete. Do not build features on it.
+    /// It holds no game data of its own. Statlines, weapons and points all come from
+    /// <see cref="IContentPack"/>; the rules themselves live in the Rules namespace
+    /// (<see cref="Movement"/>, <see cref="LineOfSight"/>, <see cref="Wounding"/>,
+    /// <see cref="Melee"/>, <see cref="Morale"/>, <see cref="Scoring"/>) and this class
+    /// sequences them.
     /// </summary>
-    public sealed class StubEngine : IGameEngine
+    public sealed class RulesEngine : IGameEngine
     {
         private readonly IContentPack _content;
 
-        /// <summary>Turn structure rather than a statline, so it is not content's business.</summary>
+        /// <summary>
+        /// Actions in an activation. Turn structure rather than a statline, so it is the
+        /// engine's business rather than content's — until a unit exists that gets three.
+        /// </summary>
         private const int ActionsPerActivation = 2;
 
-        /// <summary>Cover is -1 to hit. Every other number now comes from content.</summary>
+        /// <summary>
+        /// Cover is -1 to hit. A rule, not a stat: it describes what terrain does, not what
+        /// any particular unit is.
+        /// </summary>
         private const int CoverModifier = -1;
 
         /// <param name="content">Statlines come from here. Required — the engine holds none of its own.</param>
-        public StubEngine(IContentPack content)
+        public RulesEngine(IContentPack content)
         {
             _content = content ?? throw new ArgumentNullException(nameof(content));
         }
@@ -38,9 +44,9 @@ namespace Ironwake.Core
         private UnitDefinition DefinitionOf(UnitState u) => _content.GetUnit(u.DefinitionId);
 
         /// <summary>
-        /// A unit's primary weapon: the first in its authored list. The stub ignores
-        /// <see cref="ShootAt.WeaponId"/> exactly as it always has — letting a player choose
-        /// which weapon fires is a rule that does not exist yet.
+        /// A unit's primary weapon: the first in its authored list. <see cref="ShootAt.WeaponId"/>
+        /// is deliberately ignored — letting a player choose which weapon fires is a rule that
+        /// does not exist yet, and guessing at it here would be inventing one.
         /// Null when a unit carries nothing, which reads downstream as zero range.
         /// </summary>
         private WeaponDefinition PrimaryWeaponOf(UnitState u)
@@ -77,7 +83,7 @@ namespace Ironwake.Core
                 case PassActivation _: return ValidationResult.Legal;
                 default:
                     return ValidationResult.Illegal(ReasonCodes.UnknownAction,
-                        $"The stub engine does not handle {action.Kind} yet.");
+                        $"{action.Kind} is not implemented.");
             }
         }
 

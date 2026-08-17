@@ -62,7 +62,7 @@ namespace Ironwake.Core.Tests
         [Fact]
         public void AChargeIsLegalWhenAPathToAnAdjacentHexExists()
         {
-            var engine = new StubEngine(Pack());
+            var engine = new RulesEngine(Pack());
             var state = TwoUnits(Hex.Zero, new Hex(3, 0));   // 4-hex move, target 3 away
 
             Assert.True(engine.Validate(state, Charge()).IsLegal);
@@ -71,7 +71,7 @@ namespace Ironwake.Core.Tests
         [Fact]
         public void AChargeBeyondTheMoveAllowanceIsRefused()
         {
-            var engine = new StubEngine(Pack(move: 20));     // 2 hexes
+            var engine = new RulesEngine(Pack(move: 20));     // 2 hexes
             var state = TwoUnits(Hex.Zero, new Hex(5, 0));   // adjacent hex is 4 away
 
             var result = engine.Validate(state, Charge());
@@ -88,7 +88,7 @@ namespace Ironwake.Core.Tests
             var terrain = new Dictionary<Hex, TerrainKind>();
             for (int d = 0; d < 6; d++) terrain[target.Neighbour(d)] = TerrainKind.Impassable;
 
-            var engine = new StubEngine(Pack());
+            var engine = new RulesEngine(Pack());
             var state = TwoUnits(Hex.Zero, target, Brawler, terrain);
 
             var result = engine.Validate(state, Charge());
@@ -100,7 +100,7 @@ namespace Ironwake.Core.Tests
         [Fact]
         public void AShakenUnitCannotCharge()
         {
-            var engine = new StubEngine(Pack());
+            var engine = new RulesEngine(Pack());
             var state = TwoUnits(Hex.Zero, new Hex(3, 0), Brawler, null, StatusKind.Shaken);
 
             var result = engine.Validate(state, Charge());
@@ -113,7 +113,7 @@ namespace Ironwake.Core.Tests
         public void AChargeWithoutLineOfSightIsRefused()
         {
             var terrain = new Dictionary<Hex, TerrainKind> { { new Hex(1, 0), TerrainKind.Obscuring } };
-            var engine = new StubEngine(Pack());
+            var engine = new RulesEngine(Pack());
             var state = TwoUnits(Hex.Zero, new Hex(2, 0), Brawler, terrain);
 
             var result = engine.Validate(state, Charge());
@@ -125,7 +125,7 @@ namespace Ironwake.Core.Tests
         [Fact]
         public void AChargeMovesTheUnitAdjacentAndEngagesBothSides()
         {
-            var engine = new StubEngine(Pack());
+            var engine = new RulesEngine(Pack());
             var state = TwoUnits(Hex.Zero, new Hex(3, 0));
 
             var result = engine.Execute(state, Charge());
@@ -145,7 +145,7 @@ namespace Ironwake.Core.Tests
         [Fact]
         public void AChargeSpendsTheWholeActivationAndFightsForFree()
         {
-            var engine = new StubEngine(Pack());
+            var engine = new RulesEngine(Pack());
             var state = TwoUnits(Hex.Zero, new Hex(3, 0));
 
             var result = engine.Execute(state, Charge());
@@ -158,7 +158,7 @@ namespace Ironwake.Core.Tests
         [Fact]
         public void AUnitWithOneActionLeftCannotStartACharge()
         {
-            var engine = new StubEngine(Pack());
+            var engine = new RulesEngine(Pack());
             var state = TwoUnits(Hex.Zero, new Hex(3, 0));
             state = state.WithUnit(state.GetUnit(new UnitId(1)).With(actionsRemaining: 1));
 
@@ -189,7 +189,7 @@ namespace Ironwake.Core.Tests
         [Fact]
         public void FightingRequiresAdjacency()
         {
-            var engine = new StubEngine(Pack());
+            var engine = new RulesEngine(Pack());
             var state = TwoUnits(Hex.Zero, new Hex(3, 0));
 
             var result = engine.Validate(state, Fight());
@@ -201,7 +201,7 @@ namespace Ironwake.Core.Tests
         [Fact]
         public void FightingRequiresAMeleeWeapon()
         {
-            var engine = new StubEngine(Pack());
+            var engine = new RulesEngine(Pack());
             var state = TwoUnits(Hex.Zero, new Hex(1, 0), Gunner);
 
             var result = engine.Validate(state, Fight());
@@ -217,7 +217,7 @@ namespace Ironwake.Core.Tests
         public void MeleeUsesTheMeleeStatNotAccuracy(int meleeStat)
         {
             // Accuracy is pinned well away from Melee so a mix-up cannot pass by coincidence.
-            var engine = new StubEngine(Pack(melee: meleeStat, accuracy: 6));
+            var engine = new RulesEngine(Pack(melee: meleeStat, accuracy: 6));
             var state = TwoUnits(Hex.Zero, new Hex(1, 0));
 
             var toHit = engine.Execute(state, Fight()).Events
@@ -234,7 +234,7 @@ namespace Ironwake.Core.Tests
             var targetHex = new Hex(1, 0);
             var terrain = new Dictionary<Hex, TerrainKind> { { targetHex, TerrainKind.Cover } };
 
-            var engine = new StubEngine(Pack());
+            var engine = new RulesEngine(Pack());
             var state = TwoUnits(Hex.Zero, targetHex, Brawler, terrain);
 
             var toHit = engine.Execute(state, Fight()).Events
@@ -247,7 +247,7 @@ namespace Ironwake.Core.Tests
         [Fact]
         public void MeleeWoundsAndSavesExactlyAsShootingDoes()
         {
-            var engine = new StubEngine(Pack());
+            var engine = new RulesEngine(Pack());
             var state = TwoUnits(Hex.Zero, new Hex(1, 0));
 
             var rolls = engine.Execute(state, Fight()).Events.OfType<DiceRolledEvent>().ToList();
@@ -265,7 +265,7 @@ namespace Ironwake.Core.Tests
         [Fact]
         public void AnEngagedUnitCannotShoot()
         {
-            var engine = new StubEngine(Pack());
+            var engine = new RulesEngine(Pack());
             var state = TwoUnits(Hex.Zero, new Hex(1, 0));
             state = Melee.RefreshEngagement(state);
 
@@ -282,7 +282,7 @@ namespace Ironwake.Core.Tests
         public void AnEngagedUnitMayStillWalkAway()
         {
             // Deferred, not decided: no free attacks and no zone of control yet.
-            var engine = new StubEngine(Pack());
+            var engine = new RulesEngine(Pack());
             var state = Melee.RefreshEngagement(TwoUnits(Hex.Zero, new Hex(1, 0)));
 
             var away = Movement.FindPath(state, new UnitId(1), new Hex(-2, 0), 4);
@@ -293,7 +293,7 @@ namespace Ironwake.Core.Tests
         [Fact]
         public void EngagementClearsWhenNoEnemyIsAdjacent()
         {
-            var engine = new StubEngine(Pack());
+            var engine = new RulesEngine(Pack());
             var state = Melee.RefreshEngagement(TwoUnits(Hex.Zero, new Hex(1, 0)));
             Assert.True(state.GetUnit(new UnitId(1)).HasStatus(StatusKind.Engaged));
 

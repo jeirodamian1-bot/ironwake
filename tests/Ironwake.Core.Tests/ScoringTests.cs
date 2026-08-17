@@ -81,20 +81,45 @@ namespace Ironwake.Core.Tests
         }
 
         [Fact]
-        public void ShakenModelsDoNotCountTowardControl()
+        public void ShakenModelsCountHalfRoundedDown()
         {
-            // A ruling, and it is what gives morale teeth beyond the to-hit penalty: the same
-            // models in the same hexes hand the objective over the moment they break.
+            // Morale still bites — the same models in the same hexes lose the objective when
+            // they break — but a broken unit holds the ground badly rather than vanishing
+            // from it. Four shaken models contribute two.
             var steady = Field(Hex.Zero, 2,
-                Trooper(1, PlayerId.A, new Hex(1, 0), models: 3),
-                Trooper(2, PlayerId.B, new Hex(-1, 0), models: 2));
+                Trooper(1, PlayerId.A, new Hex(1, 0), models: 4),
+                Trooper(2, PlayerId.B, new Hex(-1, 0), models: 3));
 
             Assert.Equal(PlayerId.A, Scoring.ControllerOf(steady, TheObjective(steady)));
 
             var broken = steady.WithUnit(steady.GetUnit(new UnitId(1)).WithStatus(StatusKind.Shaken));
 
-            Assert.Equal(0, Scoring.ContributionOf(broken, TheObjective(broken), PlayerId.A));
+            Assert.Equal(2, Scoring.ContributionOf(broken, TheObjective(broken), PlayerId.A));
             Assert.Equal(PlayerId.B, Scoring.ControllerOf(broken, TheObjective(broken)));
+        }
+
+        [Theory]
+        [InlineData(1, 0)]    // a lone shaken model rounds down to nothing
+        [InlineData(2, 1)]
+        [InlineData(5, 2)]
+        [InlineData(6, 3)]
+        public void ShakenContributionRoundsDown(int models, int expected)
+        {
+            var state = Field(Hex.Zero, 2,
+                Trooper(1, PlayerId.A, new Hex(1, 0), models, StatusKind.Shaken));
+
+            Assert.Equal(expected, Scoring.ContributionOf(state, TheObjective(state), PlayerId.A));
+        }
+
+        [Fact]
+        public void ShakenStillCostsControlAgainstAnUnshakenEqual()
+        {
+            // The point of half weight is that breaking is a setback, not an erasure.
+            var state = Field(Hex.Zero, 2,
+                Trooper(1, PlayerId.A, new Hex(1, 0), 4, StatusKind.Shaken),
+                Trooper(2, PlayerId.B, new Hex(-1, 0), 3));
+
+            Assert.Equal(PlayerId.B, Scoring.ControllerOf(state, TheObjective(state)));
         }
 
         [Fact]
@@ -140,7 +165,7 @@ namespace Ironwake.Core.Tests
         public void ScoringHappensAtRoundEndNotPerAction()
         {
             // Walking onto an objective mid-round must not pay out until the round closes.
-            var engine = new StubEngine(Pack());
+            var engine = new RulesEngine(Pack());
             var state = Field(Hex.Zero, 2, Trooper(1, PlayerId.A, new Hex(3, 0), models: 5))
                 .With(activePlayer: PlayerId.A, activeUnit: new UnitId(1));
             state = state.WithUnit(state.GetUnit(new UnitId(1)).With(
@@ -192,7 +217,7 @@ namespace Ironwake.Core.Tests
         {
             // THE INVARIANT: what the client is shown mid-round must be what pays out.
             var positions = new[] { new Hex(1, 0), new Hex(-1, 0), new Hex(2, -1), new Hex(5, 0) };
-            var engine = new StubEngine(Pack());
+            var engine = new RulesEngine(Pack());
 
             foreach (var a in positions)
             {

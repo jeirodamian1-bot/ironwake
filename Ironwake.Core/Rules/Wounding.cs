@@ -13,9 +13,7 @@ namespace Ironwake.Core
     ///   Power &lt;= Resilience / 2  ->  6+
     /// </code>
     ///
-    /// This retires the flat 4+ the stub engine used while the rule did not exist. Power and
-    /// Resilience have been authored in content since the content layer landed; until now
-    /// nothing read them.
+    /// Power and Resilience are authored in content and read only here.
     /// </summary>
     public static class Wounding
     {

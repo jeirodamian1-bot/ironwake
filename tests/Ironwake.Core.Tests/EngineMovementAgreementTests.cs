@@ -29,7 +29,7 @@ namespace Ironwake.Core.Tests
             // THE INVARIANT. For every hex ReachableHexes advertises, walking FindPath's route
             // to it must validate as Legal. If these two ever disagree the client highlights
             // a hex, the player taps it, and the engine refuses the move.
-            var engine = new StubEngine(Content);
+            var engine = new RulesEngine(Content);
             var board = SampleGame.Create(Content, 5UL);
 
             int hexesChecked = 0;
@@ -67,7 +67,7 @@ namespace Ironwake.Core.Tests
         [Fact]
         public void ReachableHexesAgreesWithWhatLegalActionsOffers()
         {
-            var engine = new StubEngine(Content);
+            var engine = new RulesEngine(Content);
             var board = SampleGame.Create(Content, 5UL);
 
             foreach (var unit in board.Units)
@@ -92,7 +92,7 @@ namespace Ironwake.Core.Tests
         {
             // Checked for BOTH players at every step, not just the one to act, so a bug in
             // the idle player's action list cannot hide.
-            var engine = new StubEngine(Content);
+            var engine = new RulesEngine(Content);
             var state = SampleGame.Create(Content, 777UL);
 
             int actionsChecked = 0;
@@ -130,7 +130,7 @@ namespace Ironwake.Core.Tests
         {
             // THE INVARIANT for melee. Checked for both players at every step, so an offer
             // the engine would then refuse cannot hide in the idle player's list.
-            var engine = new StubEngine(Content);
+            var engine = new RulesEngine(Content);
             var state = SampleGame.Create(Content, 777UL);
 
             int chargesChecked = 0, fightsChecked = 0;
@@ -169,7 +169,7 @@ namespace Ironwake.Core.Tests
         {
             // Every offered charge must have a real approach, and taking it must land the
             // unit adjacent to its target.
-            var engine = new StubEngine(Content);
+            var engine = new RulesEngine(Content);
             var board = SampleGame.Create(Content, 5UL);
 
             int checkedCharges = 0;
@@ -199,7 +199,7 @@ namespace Ironwake.Core.Tests
         [Fact]
         public void LegalActionsNeverOffersAPathThroughTerrainOrUnits()
         {
-            var engine = new StubEngine(Content);
+            var engine = new RulesEngine(Content);
             var board = SampleGame.Create(Content, 5UL);
 
             foreach (var unit in board.Units)
@@ -224,7 +224,7 @@ namespace Ironwake.Core.Tests
         {
             // The console harness and any AI pick from this list positionally, so its order
             // has to be reproducible — it is built from a Dictionary and must be sorted.
-            var engine = new StubEngine(Content);
+            var engine = new RulesEngine(Content);
             var board = SampleGame.Create(Content, 5UL);
             var state = Activated(board, board.Units[0]);
 
@@ -237,7 +237,7 @@ namespace Ironwake.Core.Tests
         [Fact]
         public void ReachableHexesIsEmptyForAMissingOrDestroyedUnit()
         {
-            var engine = new StubEngine(Content);
+            var engine = new RulesEngine(Content);
             var board = SampleGame.Create(Content, 5UL);
 
             Assert.Empty(engine.ReachableHexes(board, new UnitId(999)));
@@ -252,7 +252,7 @@ namespace Ironwake.Core.Tests
         [Fact]
         public void AFasterUnitReachesMoreHexesThanASlowerOneFromTheSamePlace()
         {
-            var engine = new StubEngine(Content);
+            var engine = new RulesEngine(Content);
             var board = SampleGame.Create(Content, 5UL);
 
             // cinderkin_raider moves 60 tenths (6 hexes); ashguard_lineholder moves 40 (4).

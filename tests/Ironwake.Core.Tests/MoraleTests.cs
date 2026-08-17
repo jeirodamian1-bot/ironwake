@@ -191,7 +191,7 @@ namespace Ironwake.Core.Tests
                 new List<UnitState> { Shooter(shaken), Trooper(2, PlayerId.B, new Hex(3, 0)) },
                 new List<ObjectiveState>(), 0, 0, new RngState(77UL), "test");
 
-            var engine = new StubEngine(content);
+            var engine = new RulesEngine(content);
             var shot = new ShootAt(PlayerId.A, new UnitId(1), new UnitId(2), "gun");
 
             var steady = engine.Execute(Board(false), shot).Events

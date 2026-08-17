@@ -55,6 +55,12 @@ dotnet run --project Ironwake.Console          # stub match plays to completion
 dotnet test
 ```
 
+Balance sweep — plays N matches from a base seed and reports outcomes and damage:
+
+```bash
+dotnet run --project Ironwake.Console -- --sweep 200 --seed 1
+```
+
 Visual match viewer — writes one self-contained HTML file and prints its absolute path:
 
 ```bash
@@ -85,13 +91,13 @@ Ironwake.sln
 │   ├── Actions/                GameAction and subclasses
 │   ├── Events/                 GameEvent and subclasses
 │   ├── Random/                 Rng (SplitMix64), RngState
-│   └── Engine/                 IGameEngine, StubEngine, SampleGame
+│   └── Engine/                 IGameEngine, RulesEngine, SampleGame
 ├── Ironwake.Content/           netstandard2.1, System.Text.Json — loading + validation
 │   └── StarterPack/            authored JSON, copied to output on build
 ├── Ironwake.Console/           net8.0 headless harness; the composition root
-│   └── Viz/                    match recorder + self-contained HTML viewer
+│   └── Viz/                    match recorder, HTML viewer, balance sweep
 └── tests/
-    ├── Ironwake.Core.Tests/    Hex, Rng, Measure, movement, StubEngine, determinism
+    ├── Ironwake.Core.Tests/    Hex, Rng, Measure, rules, engine agreement, replay
     ├── Ironwake.Content.Tests/ loading, validation, the shipped starter pack
     └── Ironwake.Console.Tests/ the match viewer, checked without a browser
 ```
@@ -104,10 +110,15 @@ Ironwake.Content — keep it that way, or a JSON problem starts failing the engi
 
 ## Notes
 
-- `StubEngine.cs` is temporary and gets deleted when the real `RulesEngine` lands. Nothing
-  outside `Ironwake.Core` should reference it by name — code against `IGameEngine`.
-- `StubEngine` reads every number from `IContentPack`. The only constants left are turn
-  structure (`ActionsPerActivation`) and the cover modifier.
+- `RulesEngine` is the engine. It holds no game data: statlines, weapons and points all come
+  from `IContentPack`, the rules live in `Rules/`, and this class sequences them. Client code
+  should still bind to `IGameEngine`, not to the concrete type.
+- The only constants inside `RulesEngine` are `ActionsPerActivation` and the cover modifier —
+  turn structure and a terrain rule, neither of which is a unit stat.
+- MISSION parameters are still hardcoded and should move to content when a second mission
+  exists: `Scoring.PointsToWin` (12), `Scoring.FinalRound` (5), `Scoring.ControlRadiusHexes`
+  (3), and everything in `SampleGame` (board radius, terrain, deployment, objectives). Those
+  describe one scenario, not the game's physics.
 - Wounding is `Wounding.TargetFor(power, resilience)`. The bands overlap, so they are tested
   strongest-first, and "exactly double"/"exactly half" are inclusive at the extreme end.
   Never write `resilience / 2` — the check is `power * 2 <= resilience` so odd values do not
@@ -154,6 +165,17 @@ Ironwake.Content — keep it that way, or a JSON problem starts failing the engi
   runs take the same wrong path. The assertion that does is
   `TheStoredRngPositionAccountsForEveryDieRolled`, which checks Consumed advances by exactly
   the dice each step reported. Keep it.
+- Shaken models count HALF toward objective control, rounded down. Zero stacked three
+  penalties onto one nerve test; half leaves a broken unit on the board rather than off it.
+- `SampleGame` is matched on POINTS (305 v 300), not unit count — three Ashguard against
+  four Cinderkin. Matching unit counts gave Ashguard a 30% points advantage and made every
+  balance sweep before E7 a rigged fight. Keep it points-matched.
+- The balance instrument is `--sweep N`, deterministic from a base seed:
+  `dotnet run --project Ironwake.Console -- --sweep 200 --seed 1`. Compare two runs at the
+  same base seed or the comparison is meaningless.
+- `MatchPolicy` shoots BEFORE charging. A unit with no melee weapon may legally charge, and
+  the free fight then does nothing, so a charge-first policy spends whole activations for
+  zero damage — the sweep measured that blunder rather than the game.
 - Content authoring: a unit declares its `factionId`; faction membership is derived from
   that, not authored separately. Two sources of truth for the same fact will disagree.
 - Validation collects every error before throwing. Keep it that way — fixing content one
@@ -171,4 +193,4 @@ Ironwake.Content — keep it that way, or a JSON problem starts failing the engi
 
 As of 2026-08-16: all five projects compile clean against .NET SDK 8.0.129, the stub match
 plays to completion on the starter pack, the seeded determinism check is byte-identical
-across runs, and 393 tests pass (311 Core, 54 Content, 28 Console).
+across runs, and 398 tests pass (316 Core, 54 Content, 28 Console).

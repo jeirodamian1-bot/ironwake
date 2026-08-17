@@ -26,13 +26,16 @@ namespace Ironwake.Core
         ///
         /// MODELS, not units: a five-strong squad counts five. Two rulings live here:
         ///
-        /// SHAKEN MODELS DO NOT COUNT. A unit that has broken is not holding ground, and this
-        /// is what gives morale teeth beyond the to-hit penalty — losing a nerve test can hand
-        /// an objective to the enemy without a shot being fired.
+        /// SHAKEN MODELS COUNT HALF, ROUNDED DOWN. A broken unit is holding the ground badly,
+        /// not evaporating off it: five shaken models contribute two. They used to contribute
+        /// nothing, which stacked three penalties onto one failed nerve test — the to-hit
+        /// modifier, no charging, AND total loss of the objective. Half weight keeps morale
+        /// meaningful while leaving a unit that breaks on the board rather than off it.
+        /// A single shaken model contributes nothing, which is the rounding, not a rule.
         ///
-        /// ENGAGED MODELS DO COUNT. Standing on an objective swinging at somebody is exactly
-        /// what holding it looks like; melee should not evict you from the ground you are
-        /// fighting over.
+        /// ENGAGED MODELS COUNT IN FULL. Standing on an objective swinging at somebody is
+        /// exactly what holding it looks like; melee should not evict you from the ground you
+        /// are fighting over.
         /// </summary>
         public static int ContributionOf(GameState state, ObjectiveState objective, PlayerId player)
         {
@@ -43,13 +46,17 @@ namespace Ironwake.Core
             foreach (var unit in state.Units)
             {
                 if (!unit.IsAlive || unit.Owner != player) continue;
-                if (unit.HasStatus(StatusKind.Shaken)) continue;
                 if (objective.Position.DistanceTo(unit.Position) > ControlRadiusHexes) continue;
 
-                models += unit.ModelsAlive;
+                models += unit.HasStatus(StatusKind.Shaken)
+                    ? unit.ModelsAlive / ShakenControlDivisor   // integer division: rounds down
+                    : unit.ModelsAlive;
             }
             return models;
         }
+
+        /// <summary>Shaken models count at one over this. See <see cref="ContributionOf"/>.</summary>
+        public const int ShakenControlDivisor = 2;
 
         /// <summary>
         /// Who holds an objective right now, or null when nobody does.

@@ -22,7 +22,7 @@ namespace Ironwake.Core.Tests
         public void EveryShotLegalActionsOffersSurvivesValidate_ThroughAWholeMatch()
         {
             // THE INVARIANT, shooting half. Checked for both players at every step.
-            var engine = new StubEngine(Content);
+            var engine = new RulesEngine(Content);
             var state = SampleGame.Create(Content, 777UL);
 
             int shotsChecked = 0;
@@ -58,7 +58,7 @@ namespace Ironwake.Core.Tests
         [Fact]
         public void LegalActionsNeverOffersAShotWithoutLineOfSight()
         {
-            var engine = new StubEngine(Content);
+            var engine = new RulesEngine(Content);
             var board = SampleGame.Create(Content, 5UL);
 
             int checkedShots = 0;
@@ -84,7 +84,7 @@ namespace Ironwake.Core.Tests
         [Fact]
         public void CheckLineOfSightAgreesWithWhatValidateDecides()
         {
-            var engine = new StubEngine(Content);
+            var engine = new RulesEngine(Content);
             var board = SampleGame.Create(Content, 5UL);
 
             foreach (var shooter in board.Units)
@@ -111,7 +111,7 @@ namespace Ironwake.Core.Tests
         [Fact]
         public void CheckLineOfSightIsBlockedForAUnitThatDoesNotExist()
         {
-            var engine = new StubEngine(Content);
+            var engine = new RulesEngine(Content);
             var board = SampleGame.Create(Content, 5UL);
 
             var los = engine.CheckLineOfSight(board, board.Units[0].Id, new UnitId(999));
@@ -127,7 +127,7 @@ namespace Ironwake.Core.Tests
         {
             var wall = new Hex(1, 0);
             var state = TwoUnits(Hex.Zero, new Hex(2, 0), terrain: (wall, TerrainKind.Obscuring));
-            var engine = new StubEngine(TestContent.Basic());
+            var engine = new RulesEngine(TestContent.Basic());
 
             var result = engine.Validate(state, new ShootAt(PlayerId.A, new UnitId(1), new UnitId(2), "w"));
 
@@ -140,7 +140,7 @@ namespace Ironwake.Core.Tests
         public void TheSameShotFromElevatedGroundIsAllowed()
         {
             var wall = new Hex(1, 0);
-            var engine = new StubEngine(TestContent.Basic());
+            var engine = new RulesEngine(TestContent.Basic());
 
             var blocked = TwoUnits(Hex.Zero, new Hex(2, 0), (wall, TerrainKind.Obscuring));
             Assert.Equal(ReasonCodes.NoLineOfSight,
@@ -295,7 +295,7 @@ namespace Ironwake.Core.Tests
                 objectives: new List<ObjectiveState>(),
                 scoreA: 0, scoreB: 0, rng: new RngState(20250808UL), contentVersion: "test");
 
-            var engine = new StubEngine(TestContent.Basic());
+            var engine = new RulesEngine(TestContent.Basic());
             var action = new ShootAt(PlayerId.A, new UnitId(1), new UnitId(2), "test_weapon");
 
             Assert.True(engine.Validate(state, action).IsLegal);
