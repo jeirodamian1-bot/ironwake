@@ -54,14 +54,32 @@ namespace Ironwake.Core
         public override string Kind => "ShootAt";
     }
 
+    /// <summary>
+    /// Close with an enemy and fight it. Mirrors <see cref="MoveUnit"/>: the approach is an
+    /// explicit path so the client can show a player where they will end up BEFORE they
+    /// commit, rather than the charge being the one action taken blind.
+    /// </summary>
     public sealed class ChargeAt : GameAction
     {
         public UnitId Unit { get; }
         public UnitId Target { get; }
-        public ChargeAt(PlayerId actor, UnitId unit, UnitId target) : base(actor)
+
+        /// <summary>
+        /// The run-in, including the charger's starting hex, exactly as a
+        /// <see cref="MoveUnit"/> path. Empty means "work it out for me" — the engine then
+        /// resolves the approach itself, which is what a client that has not asked
+        /// <c>PreviewCharge</c> will send.
+        /// </summary>
+        public IReadOnlyList<Hex> Path { get; }
+
+        public ChargeAt(PlayerId actor, UnitId unit, UnitId target,
+                        IReadOnlyList<Hex> path = null) : base(actor)
         {
-            Unit = unit; Target = target;
+            Unit = unit;
+            Target = target;
+            Path = path ?? Array.Empty<Hex>();
         }
+
         public override string Kind => "ChargeAt";
     }
 

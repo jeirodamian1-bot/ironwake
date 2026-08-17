@@ -56,6 +56,51 @@ namespace Ironwake.Core
         /// rendering anything order-dependent.
         /// </remarks>
         IReadOnlyDictionary<ObjectiveId, PlayerId?> ProjectedControl(GameState state);
+
+        /// <summary>
+        /// Where a charge would land, and the route it would take, without committing to it.
+        ///
+        /// A charge moves the unit before it fights, so a player choosing one is choosing a
+        /// destination as much as a target. This is what lets the client draw that
+        /// destination on hover. The path it returns is exactly the one
+        /// <see cref="LegalActions"/> puts on its <see cref="ChargeAt"/> offers.
+        /// </summary>
+        ChargeApproach PreviewCharge(GameState state, UnitId charger, UnitId target);
+
+        /// <summary>
+        /// The content definition behind a unit — display name, points, statline, weapons.
+        ///
+        /// <see cref="GameState"/> deliberately carries only a <see cref="UnitState.DefinitionId"/>
+        /// and a content version, so state stays small and pins the content it was built
+        /// against. Without this a client holding only a state cannot so much as label a
+        /// counter.
+        /// </summary>
+        /// <exception cref="ContentNotFoundException">If the unit's definition is not in the pack.</exception>
+        UnitDefinition GetDefinition(UnitState unit);
+
+        /// <summary>
+        /// Every hex the shooter could put fire into: on the board, inside the weapon's
+        /// range, and with line of sight. Empty for a melee weapon or a unit that cannot see
+        /// out of where it stands.
+        ///
+        /// Lets the client shade a threat range in one call rather than probing
+        /// <see cref="Validate"/> at every hex, and lets it shade EMPTY ground — which
+        /// probing per enemy cannot do at all.
+        /// </summary>
+        /// <param name="state">The board to measure across.</param>
+        /// <param name="shooter">The unit doing the shooting.</param>
+        /// <param name="weaponId">The weapon to measure, or null for the unit's primary.</param>
+        /// <remarks>Enumeration order is not meaningful — sort before rendering.</remarks>
+        IReadOnlyCollection<Hex> ShootableHexes(GameState state, UnitId shooter, string weaponId);
+
+        /// <summary>
+        /// How many of a unit's actions this action spends.
+        ///
+        /// Mostly one, but a charge spends the whole activation, and the client needs to be
+        /// able to say so before the player finds out by having no actions left.
+        /// Activating, ending and passing cost nothing.
+        /// </summary>
+        int ActionCost(GameState state, GameAction action);
     }
 
     public sealed class ExecutionResult

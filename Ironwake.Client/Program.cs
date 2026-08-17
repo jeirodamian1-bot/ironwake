@@ -209,6 +209,10 @@ namespace Ironwake.Client
                     moves = MoveViews(),
                     targets = TargetViews(active),
                     commands = CommandViews(),
+                    threat = ThreatView(),
+                    costs = CostView(),
+                    actionsPerActivation = _engine.ActionCost(_state,
+                        new ChargeAt(_state.ActivePlayer, UnitId.None, UnitId.None)),
                     log = _log.ToList(),
                 };
             }
@@ -293,14 +297,15 @@ namespace Ironwake.Client
                 {
                     u.Position.ToPixel(HexSize, out double cx, out double cy);
 
-                    // DisplayName is not on GameState — it needs the content pack.
-                    string name = _content.TryGetUnit(u.DefinitionId, out var def)
-                        ? def.DisplayName : u.DefinitionId;
+                    // The engine labels the unit now — GameState carries only a definition id,
+                    // and IGameEngine.GetDefinition is what turns it into something readable.
+                    var def = _engine.GetDefinition(u);
 
                     return (object)new
                     {
                         id = u.Id.ToString(),
-                        name,
+                        name = def.DisplayName,
+                        points = def.Points,
                         owner = u.Owner.ToString(),
                         cx = Round(cx),
                         cy = Round(cy),
@@ -384,12 +389,58 @@ namespace Ironwake.Client
                         chargeId = OfferIdOf(a => a is ChargeAt c && c.Target == enemy.Id),
                         chargeReason = charge.IsLegal ? null : charge.ReasonCode,
                         chargeDetail = charge.IsLegal ? null : charge.Detail,
+
+                        // Where the charge would land, asked BEFORE committing to it.
+                        chargePreview = ChargePreviewOf(active, enemy),
                         fightId = OfferIdOf(a => a is FightUnit f && f.Target == enemy.Id),
                         fightReason = fight.IsLegal ? null : fight.ReasonCode,
                         fightDetail = fight.IsLegal ? null : fight.Detail,
                     });
                 }
                 return views;
+            }
+
+            /// <summary>The engine's own charge approach, as pixels the page can draw.</summary>
+            private object ChargePreviewOf(UnitState charger, UnitState target)
+            {
+                var preview = _engine.PreviewCharge(_state, charger.Id, target.Id);
+                if (!preview.IsPossible) return null;
+
+                preview.Destination.ToPixel(HexSize, out double dx, out double dy);
+
+                return new
+                {
+                    cx = Round(dx),
+                    cy = Round(dy),
+                    q = preview.Destination.Q,
+                    r = preview.Destination.R,
+                    steps = preview.Path.Count - 1,
+                    path = preview.Path.Select(h =>
+                    {
+                        h.ToPixel(HexSize, out double px, out double py);
+                        return F(px) + "," + F(py);
+                    }).ToList(),
+                };
+            }
+
+            /// <summary>Every hex the active unit could put fire into, for shading.</summary>
+            private object ThreatView()
+            {
+                if (_state.ActiveUnit.IsNone) return new List<object>();
+
+                return _engine.ShootableHexes(_state, _state.ActiveUnit, null)
+                    .OrderBy(h => h.Q).ThenBy(h => h.R)
+                    .Select(h => (object)new { q = h.Q, r = h.R })
+                    .ToList();
+            }
+
+            /// <summary>What each offered action will cost, so the UI can warn before it is spent.</summary>
+            private object CostView()
+            {
+                var costs = new Dictionary<string, int>();
+                for (int i = 0; i < _offered.Count; i++)
+                    costs[i.ToString(CultureInfo.InvariantCulture)] = _engine.ActionCost(_state, _offered[i]);
+                return costs;
             }
 
             private object CommandViews() => new

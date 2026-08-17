@@ -45,6 +45,11 @@ svg{width:100%;height:auto;display:block;background:#0d1015;
 .movecost{fill:var(--good);font-size:10px;font-weight:700;text-anchor:middle;pointer-events:none}
 .preview{fill:none;stroke:#fff;stroke-width:3;stroke-opacity:.65;stroke-dasharray:6 5;
   stroke-linejoin:round;pointer-events:none}
+.preview.charge{stroke:var(--gold);stroke-width:4;stroke-opacity:.95;stroke-dasharray:none}
+.threat polygon{fill:#ff5a5a12;stroke:#ff5a5a2e;stroke-width:1;pointer-events:none}
+.landing{fill:none;stroke:var(--gold);stroke-width:3;pointer-events:none}
+.landingtext{fill:var(--gold);font-size:10px;font-weight:800;text-anchor:middle;pointer-events:none}
+.cost{color:var(--gold);font-weight:600}
 .unit{stroke:#0d1015;stroke-width:2}
 .unit.o-P1{fill:var(--p1)} .unit.o-P2{fill:var(--p2)}
 .unit.activated{opacity:.4}
@@ -96,11 +101,13 @@ ol li{margin-bottom:4px;font-variant-numeric:tabular-nums;font-size:13px}
   <section class="board">
     <svg id="board">
       <g id="terrain"></g>
+      <g id="threat" class="threat"></g>
       <g id="radius"></g>
       <g id="coords"></g>
       <g id="objectives"></g>
       <g id="moves"></g>
       <polyline id="preview" class="preview" points=""></polyline>
+      <g id="landing"></g>
       <g id="units"></g>
     </svg>
     <div class="legend">
@@ -112,6 +119,8 @@ ol li{margin-bottom:4px;font-variant-numeric:tabular-nums;font-size:13px}
       <span><i class="sw swobj"></i>Objective</span>
       <span><i class="sw" style="background:var(--p1)"></i>Player 1</span>
       <span><i class="sw" style="background:var(--p2)"></i>Player 2</span>
+      <span><i class="sw" style="background:#ff5a5a40"></i>Threat range</span>
+      <span><i class="sw swobj"></i>Charge landing</span>
       <span style="color:var(--gold);font-weight:700">! = shaken</span>
     </div>
   </section>
@@ -121,6 +130,7 @@ ol li{margin-bottom:4px;font-variant-numeric:tabular-nums;font-size:13px}
       <h2>Activation</h2>
       <div id="over"></div>
       <p class="hint" id="hint"></p>
+      <p class="hint"><span id="cost" class="cost"></span></p>
       <div class="row" style="margin-top:10px">
         <button id="end">End activation</button>
         <button id="pass">Pass</button>
@@ -146,6 +156,13 @@ ol li{margin-bottom:4px;font-variant-numeric:tabular-nums;font-size:13px}
 <script>
 const $ = id => document.getElementById(id);
 let view = null;
+
+// What an offered action costs, as the ENGINE reports it — not worked out here.
+function costOf(actionId) {
+  if (!view || !view.costs) return 1;
+  const cost = view.costs[String(actionId)];
+  return cost === undefined ? 1 : cost;
+}
 
 async function call(path, body) {
   const options = body
@@ -213,6 +230,14 @@ function render() {
     label.textContent = o.holder ? o.holder : 'contested';
   });
 
+  // threat range: every hex the active unit could fire into, straight from the engine
+  const threat = $('threat');
+  threat.innerHTML = '';
+  for (const t of (view.threat || [])) {
+    const hex = view.board.hexes.find(h => h.q === t.q && h.r === t.r);
+    if (hex) threat.innerHTML += '<polygon points="' + hex.points + '"></polygon>';
+  }
+
   // movement options
   const moves = $('moves');
   moves.innerHTML = '';
@@ -221,7 +246,7 @@ function render() {
     if (!hex) continue;
     moves.innerHTML +=
       '<polygon class="movehex" data-action="' + m.actionId + '" data-path="' +
-      m.path.join(' ') + '" points="' + hex.points + '"></polygon>' +
+      m.path.join(' ') + '" data-cost="' + costOf(m.actionId) + '" points="' + hex.points + '"></polygon>' +
       '<text class="movecost" x="' + m.cx + '" y="' + (m.cy + 4) + '">' + m.cost + '</text>';
   }
 
@@ -255,7 +280,9 @@ function render() {
           cls += ' targetable';
           action = offer;
           const verb = target.fightId != null ? 'Fight' : target.shootId != null ? 'Shoot' : 'Charge';
-          tip += ' · click to ' + verb.toLowerCase();
+          const cost = costOf(offer);
+          tip += ' · click to ' + verb.toLowerCase() +
+                 (cost > 1 ? ' (costs ' + cost + ' — ends your activation)' : '');
         } else {
           cls += ' blocked';
           const why = target.shootDetail || target.chargeDetail || target.fightDetail;
@@ -271,9 +298,13 @@ function render() {
       }
     }
 
+    const preview = target && target.chargePreview ? target.chargePreview : null;
+
     layer.innerHTML +=
       '<circle class="' + cls + '" cx="' + u.cx + '" cy="' + u.cy + '" r="' + (dead ? 8 : 14) + '"' +
       (action !== null && action !== undefined ? ' data-action="' + action + '"' : '') +
+      (preview ? ' data-charge="' + preview.path.join(' ') + '" data-landcx="' + preview.cx +
+                 '" data-landcy="' + preview.cy + '" data-landsteps="' + preview.steps + '"' : '') +
       '><title>' + escapeHtml(tip) + '</title></circle>' +
       (dead ? '' :
         '<text class="ulabel" x="' + u.cx + '" y="' + (u.cy + 4) + '">' + u.alive + '</text>' +
@@ -301,7 +332,7 @@ function render() {
   }
   log.scrollTop = log.scrollHeight;
 
-  $('preview').setAttribute('points', '');
+  clearPreview();
 }
 
 function escapeHtml(text) {
@@ -316,15 +347,40 @@ $('board').addEventListener('click', event => {
   call('/api/act', { actionId: parseInt(id, 10) });
 });
 
+function clearPreview() {
+  $('preview').setAttribute('points', '');
+  $('preview').setAttribute('class', 'preview');
+  $('landing').innerHTML = '';
+  $('cost').textContent = '';
+}
+
 $('board').addEventListener('mouseover', event => {
-  const path = event.target.getAttribute && event.target.getAttribute('data-path');
-  if (path) $('preview').setAttribute('points', path);
-});
-$('board').addEventListener('mouseout', event => {
-  if (event.target.getAttribute && event.target.getAttribute('data-path')) {
-    $('preview').setAttribute('points', '');
+  const el = event.target;
+  if (!el.getAttribute) return;
+
+  const path = el.getAttribute('data-path');
+  if (path) {
+    $('preview').setAttribute('points', path);
+    $('preview').setAttribute('class', 'preview');
+    const cost = el.getAttribute('data-cost');
+    if (cost) $('cost').textContent = 'Move — costs ' + cost + ' action' + (cost === '1' ? '' : 's');
+    return;
+  }
+
+  // Charge landing hex, from the engine's own preview. Nothing here works it out.
+  const charge = el.getAttribute('data-charge');
+  if (charge) {
+    $('preview').setAttribute('points', charge);
+    $('preview').setAttribute('class', 'preview charge');
+    const cx = el.getAttribute('data-landcx'), cy = el.getAttribute('data-landcy');
+    $('landing').innerHTML =
+      '<circle class="landing" cx="' + cx + '" cy="' + cy + '" r="17"></circle>' +
+      '<text class="landingtext" x="' + cx + '" y="' + (parseFloat(cy) + 4) + '">land</text>';
+    $('cost').textContent = 'Charge — ' + el.getAttribute('data-landsteps') +
+      ' hexes, costs ' + view.actionsPerActivation + ' actions (ends your activation)';
   }
 });
+$('board').addEventListener('mouseout', clearPreview);
 
 $('end').addEventListener('click', () => call('/api/act', { actionId: view.commands.endId }));
 $('pass').addEventListener('click', () => call('/api/act', { actionId: view.commands.passId }));

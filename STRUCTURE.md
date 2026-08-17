@@ -197,6 +197,16 @@ Ironwake.Content — keep it that way, or a JSON problem starts failing the engi
   framework files carry `https://aka.ms/...` URLs that make a "no external URLs" test
   unpassable. The local host needs zero packages because the ASP.NET shared framework is
   already installed.
+- `IGameEngine` answers everything a client needs before it commits: `PreviewCharge` (where
+  a charge lands), `GetDefinition` (display name, points, statline), `ShootableHexes` (threat
+  range over empty ground) and `ActionCost` (a charge spends the whole activation). These
+  closed the four gaps E9 surfaced. If a client has to work something out for itself, add a
+  query here rather than working around it.
+- `ChargeAt` carries its approach path, exactly as `MoveUnit` does, and `LegalActions` fills
+  it in. An EMPTY path is the convenience form — "charge that unit" — and the engine resolves
+  the approach itself. A supplied path is validated step by step and must end in contact.
+- `GameState` still carries no statlines: a unit knows only its `DefinitionId` and the state
+  pins its `ContentVersion`. Keep it that way — `GetDefinition` is how content is reached.
 - The browser holds NO engine and therefore cannot hold rules. The host sends action ids the
   engine issued via `LegalActions`; the page posts one back. It never constructs an action
   and never computes a path — `MoveUnit` carries the engine's own route. Keep it that way:
@@ -231,4 +241,4 @@ Ironwake.Content — keep it that way, or a JSON problem starts failing the engi
 
 As of 2026-08-16: all five projects compile clean against .NET SDK 8.0.129, the stub match
 plays to completion on the starter pack, the seeded determinism check is byte-identical
-across runs, and 411 tests pass (319 Core, 54 Content, 31 Console, 7 Client).
+across runs, and 428 tests pass (336 Core, 54 Content, 31 Console, 7 Client).

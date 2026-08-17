@@ -211,9 +211,48 @@ namespace Ironwake.Core
                     $"Line of sight is blocked by the terrain at{where}.");
             }
 
-            if (!Melee.FindApproach(s, a.Unit, a.Target, MoveAllowanceOf(u)).IsPossible)
+            int allowance = MoveAllowanceOf(u);
+
+            // An empty path means "work it out for me". A supplied one is checked step by
+            // step, exactly as ValidateMove checks a move — two equally legal run-ins to the
+            // same hex must both be accepted.
+            if (a.Path.Count == 0)
+            {
+                if (!Melee.FindApproach(s, a.Unit, a.Target, allowance).IsPossible)
+                    return ValidationResult.Illegal(ReasonCodes.NoChargePath,
+                        "No route to a hex beside that unit within its move.");
+
+                return ValidationResult.Legal;
+            }
+
+            if (a.Path[0] != u.Position)
+                return ValidationResult.Illegal(ReasonCodes.PathNotContiguous,
+                    "Path must start at the unit's position.");
+            if (a.Path.Count - 1 > allowance)
+                return ValidationResult.Illegal(ReasonCodes.PathTooLong, $"Move is {allowance} hexes.");
+
+            for (int i = 1; i < a.Path.Count; i++)
+            {
+                var step = a.Path[i];
+                if (a.Path[i - 1].DistanceTo(step) != 1)
+                    return ValidationResult.Illegal(ReasonCodes.PathNotContiguous,
+                        "Path must step one hex at a time.");
+
+                switch (Movement.BlockingReason(s, u.Id, step))
+                {
+                    case HexBlock.OffBoard:
+                        return ValidationResult.Illegal(ReasonCodes.OffBoard, "That hex is off the board.");
+                    case HexBlock.Impassable:
+                        return ValidationResult.Illegal(ReasonCodes.PathBlocked, "That hex is impassable.");
+                    case HexBlock.Occupied:
+                        return ValidationResult.Illegal(ReasonCodes.HexOccupied, "Another unit is there.");
+                }
+            }
+
+            // A charge has to end in contact, or it is just a move.
+            if (a.Path[a.Path.Count - 1].DistanceTo(t.Position) != 1)
                 return ValidationResult.Illegal(ReasonCodes.NoChargePath,
-                    "No route to a hex beside that unit within its move.");
+                    "A charge must end beside its target.");
 
             return ValidationResult.Legal;
         }
@@ -457,15 +496,24 @@ namespace Ironwake.Core
         private GameState DoCharge(GameState s, ChargeAt a, List<GameEvent> ev, Rng rng)
         {
             var charger = s.GetUnit(a.Unit);
-            var approach = Melee.FindApproach(s, a.Unit, a.Target, MoveAllowanceOf(charger));
-            if (!approach.IsPossible) return s;
+
+            // Take the route the action carries; resolve one only when it carries none.
+            IReadOnlyList<Hex> path = a.Path;
+            if (path.Count == 0)
+            {
+                var approach = Melee.FindApproach(s, a.Unit, a.Target, MoveAllowanceOf(charger));
+                if (!approach.IsPossible) return s;
+                path = approach.Path;
+            }
+
+            var destination = path[path.Count - 1];
 
             // Declared first, so a consumer reading only the event stream can tell this run-in
             // from an ordinary move; then the move itself, so it animates the same way.
-            ev.Add(new ChargeDeclaredEvent(a.Unit, a.Target, approach.Path));
-            ev.Add(new UnitMovedEvent(a.Unit, approach.Path));
+            ev.Add(new ChargeDeclaredEvent(a.Unit, a.Target, path));
+            ev.Add(new UnitMovedEvent(a.Unit, path));
 
-            var moved = charger.With(position: approach.Destination, actionsRemaining: 0);
+            var moved = charger.With(position: destination, actionsRemaining: 0);
             var next = s.WithUnit(moved);
 
             // Both sides are now in melee. RefreshEngagement would catch this anyway, but
@@ -570,7 +618,11 @@ namespace Ironwake.Core
                     var shot = new ShootAt(player, active.Id, t.Id, weaponId);
                     if (Validate(state, shot).IsLegal) list.Add(shot);
 
-                    var charge = new ChargeAt(player, active.Id, t.Id);
+                    // Issued with its route already filled in, exactly as MoveUnit is, so a
+                    // client can preview the landing hex without asking a second question.
+                    var approach = Melee.FindApproach(state, active.Id, t.Id, allowance);
+                    var charge = new ChargeAt(player, active.Id, t.Id,
+                                              approach.IsPossible ? approach.Path : null);
                     if (Validate(state, charge).IsLegal) list.Add(charge);
 
                     var fight = new FightUnit(player, active.Id, t.Id);
@@ -604,5 +656,60 @@ namespace Ironwake.Core
         /// <inheritdoc />
         public IReadOnlyDictionary<ObjectiveId, PlayerId?> ProjectedControl(GameState state) =>
             Scoring.ProjectedControl(state);
+
+        /// <inheritdoc />
+        public ChargeApproach PreviewCharge(GameState state, UnitId charger, UnitId target)
+        {
+            var mover = state.GetUnit(charger);
+            if (mover == null) return ChargeApproach.None;
+
+            return Melee.FindApproach(state, charger, target, MoveAllowanceOf(mover));
+        }
+
+        /// <inheritdoc />
+        public UnitDefinition GetDefinition(UnitState unit)
+        {
+            if (unit == null) throw new ArgumentNullException(nameof(unit));
+            return _content.GetUnit(unit.DefinitionId);
+        }
+
+        /// <inheritdoc />
+        public IReadOnlyCollection<Hex> ShootableHexes(GameState state, UnitId shooter, string weaponId)
+        {
+            var unit = state.GetUnit(shooter);
+            if (unit == null || !unit.IsAlive) return Array.Empty<Hex>();
+
+            var weapon = weaponId == null ? PrimaryWeaponOf(unit) : _content.GetWeapon(weaponId);
+
+            // Range 0 is content's way of saying melee: nothing is shootable with it.
+            if (weapon == null || weapon.Range <= 0) return Array.Empty<Hex>();
+
+            return (IReadOnlyCollection<Hex>)LineOfSight.VisibleFrom(
+                state, unit.Position, weapon.RangeInHexes);
+        }
+
+        /// <inheritdoc />
+        public int ActionCost(GameState state, GameAction action)
+        {
+            if (action == null) throw new ArgumentNullException(nameof(action));
+
+            switch (action)
+            {
+                // A charge is the whole activation: the run-in and the free fight together.
+                case ChargeAt _: return ActionsPerActivation;
+
+                case MoveUnit _:
+                case ShootAt _:
+                case FightUnit _: return 1;
+
+                // Activating grants actions rather than spending them; ending and passing
+                // close the activation out.
+                case ActivateUnit _:
+                case EndActivation _:
+                case PassActivation _: return 0;
+
+                default: return 0;
+            }
+        }
     }
 }
